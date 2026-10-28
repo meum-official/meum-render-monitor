@@ -61,7 +61,8 @@ export async function runScan(config, state, persist, { stopAt = Infinity, signa
     const inventory = await discover(config);
     state.discovery = { ...inventory, pages: undefined, totalTargets: inventory.pages.length * config.viewports.length };
     state.results = inventory.pages.flatMap(page => config.viewports.map(viewport => ({ ...page, id: createHash('sha256').update(page.url + viewport.name).digest('hex').slice(0, 20), viewport, name: `${page.name}${config.viewports.length > 1 ? ` · ${viewport.name}` : ''}`, status: 'pending', checkedAt: null, issues: [], checks: [] })));
-    const signature = createHash('sha256').update(JSON.stringify([config, state.results.map(x => x.id).sort()])).digest('hex');
+    const definitions = await Promise.all(['contracts.mjs', 'probe.mjs', 'discovery.mjs'].map(name => readFile(path.join(ROOT, name), 'utf8')));
+    const signature = createHash('sha256').update(JSON.stringify([config, state.results.map(x => x.id).sort(), definitions])).digest('hex');
     if (previous?.inventorySignature === signature) {
       const known = new Map(previous.results.map(x => [x.id, x]));
       state.results = state.results.map(row => known.get(row.id)?.checkedAt ? known.get(row.id) : row);

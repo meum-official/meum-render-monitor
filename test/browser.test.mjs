@@ -46,6 +46,7 @@ describe('real Chromium render checks using only local HTTP fixtures', { skip: !
         '/missing-image': `${healthy}<img width="400" height="180" src="/missing-image.png" alt="Exhibition artwork">`,
         '/password': `${healthy}<section class="exhibition-password-dialog" role="dialog">Enter the exhibition password to continue.</section>`,
         '/unknown': healthy,
+        '/plan': `<p>Loading pricing</p><script>setTimeout(() => { history.replaceState({}, '', '/en/pricing'); document.body.innerHTML='<main class="international-pricing"><header><h1>International pricing</h1></header><div class="plan-grid"><article>${paragraph}</article></div></main>'; }, 50);</script>`,
       };
       response.writeHead(pathname === '/not-found' ? 404 : 200, { 'Content-Type': 'text/html; charset=utf-8' });
       response.end(documentFor(fixtures[pathname] || healthy));
@@ -157,6 +158,14 @@ describe('real Chromium render checks using only local HTTP fixtures', { skip: !
   it('does not mark a password gate as a verified exhibition', async () => {
     const result = await check('/password', { ...rule, unknownSelectors: ['.exhibition-password-dialog'] });
     assert.equal(result.status, 'unknown', JSON.stringify(result.issues));
+  });
+
+  it('accepts supported client-side pricing language navigation and records the settled URL', async () => {
+    const result = await check('/plan', {
+      selectors: ['.plan-select .pricing-hero__title, .international-pricing > header h1', '.plan-select #group-plans-title, .international-pricing .plan-grid > article'], loading: [], errors: [],
+    });
+    assert.equal(result.status, 'pass', JSON.stringify(result.issues));
+    assert.equal(result.finalUrl, `${origin}/en/pricing`);
   });
 
   it('resumes the next unchecked page after a limited scan without replacing earlier evidence', async () => {

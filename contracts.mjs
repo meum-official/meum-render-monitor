@@ -12,7 +12,7 @@ const staticPages = {
   '/en/guides': ['.service-manual .manual-header h1', '.manual-content .manual-section'],
   '/tools/exhibition-poster': ['.poster-tool #tool-title', '.poster-tool .poster-form'],
   '/meum-service': ['.service-page #service-title', '.service-page .service-primary'],
-  '/plan': ['.plan-select .pricing-hero__title', '.plan-select #group-plans-title'],
+  '/plan': ['.plan-select .pricing-hero__title, .international-pricing > header h1', '.plan-select #group-plans-title, .international-pricing .plan-grid > article'],
   '/cases': ['.usecase-page .hero__title', '.usecase-page .case-card'],
   '/sample-exhibition': ['.sample-page .sample-intro h1', '.sample-page #sample-request'],
   '/school/teachers': ['.teacher-landing #teacher-title', '.teacher-landing .sample-cta'],
@@ -91,6 +91,9 @@ export function ruleFor(url) {
   if (path === '/en/pricing') return content(['.international-pricing header h1', '.international-pricing .audience'], {
     loading: ['.international-pricing > p[role=status]'], errors: ['.international-pricing > p[role=alert]'],
   });
+  if (path === '/plan') return content([...staticPages[path]], {
+    loading: ['.international-pricing > p[role=status]'], errors: ['.international-pricing > p[role=alert]'],
+  });
   if (/^\/webtoon\/[^/]+$/.test(path)) return content(['.webtoon-reader #reader-title', '.reader-images .reader-image img'], {
     errors: ['.reader-image__error'],
   });
@@ -107,6 +110,7 @@ export function allowedNavigation(from, to) {
     if (before === after) return true;
     if (before === '/' && after === '/home') return true;
     if (before === '/login' && after === '/login/info') return true;
+    if (before === '/plan' && after === '/en/pricing') return true;
     const legacy = before.match(/^\/exhibition\/(\d+)$/);
     return !!legacy && after === `/exhibition/preview/${legacy[1]}`;
   } catch { return false; }

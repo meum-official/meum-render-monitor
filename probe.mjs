@@ -57,7 +57,7 @@ export async function probe(browser, target, config, screenshotDirectory) {
     result.httpStatus = response?.status() ?? null;
     if (!response || !response.ok()) issue('http', `페이지 응답: ${result.httpStatus ?? '없음'}`);
     result.finalUrl = page.url();
-    if (!config.origins.includes(new URL(result.finalUrl).origin) || !allowedNavigation(target.url, result.finalUrl)) issue('redirect', '요청한 페이지와 다른 화면으로 이동했습니다.');
+    if (!config.origins.includes(new URL(result.finalUrl).origin)) issue('redirect', '요청한 서비스 밖으로 이동했습니다.');
     const timeout = rule.canvas ? Math.max(config.renderTimeoutMs, 90000) : config.renderTimeoutMs;
     try {
       await Promise.race([fatal, page.waitForFunction(({ selectors, loading, errors, unknownSelectors, requiredGlobal }) => {
@@ -66,6 +66,8 @@ export async function probe(browser, target, config, screenshotDirectory) {
       }, rule, { timeout })]);
     } catch { issue('render-timeout', `화면 준비 조건을 ${timeout / 1000}초 안에 충족하지 못했습니다.`); }
     await page.waitForTimeout(config.settleMs);
+    result.finalUrl = page.url();
+    if (!allowedNavigation(target.url, result.finalUrl)) issue('redirect', '요청한 페이지와 다른 화면으로 이동했습니다.');
     const dom = await page.evaluate(({ selectors, loading, errors, unknownSelectors, requiredGlobal }) => {
       const visible = el => { const r = el.getBoundingClientRect(); const s = getComputedStyle(el); return r.width > 0 && r.height > 0 && s.display !== 'none' && s.visibility !== 'hidden' && Number(s.opacity) > 0; };
       const app = document.querySelector('#app') || document.body;
