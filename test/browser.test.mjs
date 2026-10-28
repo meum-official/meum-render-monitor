@@ -158,4 +158,58 @@ describe('real Chromium render checks using only local HTTP fixtures', { skip: !
     const result = await check('/password', { ...rule, unknownSelectors: ['.exhibition-password-dialog'] });
     assert.equal(result.status, 'unknown', JSON.stringify(result.issues));
   });
+
+  it('resumes the next unchecked page after a limited scan without replacing earlier evidence', async () => {
+    const dataDirectory = path.resolve(directory, 'continuation-data');
+    assert.equal(path.dirname(dataDirectory), path.resolve(directory));
+    const previousEnvironment = Object.fromEntries(['DATA_DIR', 'SCAN_LIMIT', 'SCAN_MAX_MINUTES'].map(key => [key, process.env[key]]));
+    try {
+      process.env.DATA_DIR = dataDirectory;
+      process.env.SCAN_LIMIT = '1';
+      delete process.env.SCAN_MAX_MINUTES;
+      // Import after setting DATA_DIR: no test may use the real monitor data directory.
+      const { DATA, emptyState, runScan } = await import('../server.mjs');
+      assert.equal(DATA, dataDirectory, 'server was already imported with another data directory');
+      const scanConfig = {
+        ...config,
+        settleMs: 50,
+        sitemaps: [],
+        roomListUrl: null,
+        extraPages: [
+          { url: `${origin}/healthy`, name: 'First local fixture' },
+          { url: `${origin}/other-healthy`, name: 'Second local fixture' },
+        ],
+        viewports: [{ name: 'desktop', width: 1280, height: 800 }],
+        followViewerEntries: false,
+        betweenPagesMs: 0,
+        maxSitemaps: 5,
+        maxRoomPages: 5,
+        retainedRuns: 2,
+      };
+      const state = emptyState();
+      const persist = async () => {};
+      await runScan(scanConfig, state, persist);
+      assert.equal(state.status, 'completed', JSON.stringify(state.discovery.errors));
+      assert.equal(state.continuation, true);
+      assert.equal(state.results.length, 2);
+      assert.equal(state.results.filter(row => row.checkedAt).length, 1);
+      assert.equal(state.results.filter(row => !row.checkedAt && row.status === 'unknown').length, 1);
+      const firstEvidence = structuredClone(state.results.find(row => row.checkedAt));
+      const runId = state.runId;
+
+      await runScan(scanConfig, state, persist);
+      assert.equal(state.status, 'completed', JSON.stringify(state.discovery.errors));
+      assert.equal(state.continuation, false);
+      assert.equal(state.runId, runId);
+      assert.equal(state.results.filter(row => row.checkedAt).length, 2);
+      assert.equal(state.results.find(row => row.id === firstEvidence.id).checkedAt, firstEvidence.checkedAt);
+      assert.equal(state.results.find(row => row.id === firstEvidence.id).screenshot, firstEvidence.screenshot);
+      assert.ok(state.results.find(row => row.id !== firstEvidence.id).checkedAt);
+    } finally {
+      for (const [key, value] of Object.entries(previousEnvironment)) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+    }
+  });
 });
