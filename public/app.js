@@ -8,6 +8,7 @@
   let filter = 'all';
   let fetching = false;
   let requestingRun = false;
+  let lastFetchAt = 0;
 
   function el(tag, className, text) {
     const node = document.createElement(tag);
@@ -70,6 +71,7 @@
     $('next-run').textContent = running ? '현재 점검 중' : state.nextRunAt ? formatDate(state.nextRunAt) : state.scheduleDescription || (state.mode === 'after-deploy' ? '배포 변경 감시 중' : '수동 실행');
     $('run-button').disabled = running || requestingRun || !connected || (state.readOnly && !safeLink(state.workflowUrl));
     $('run-button').replaceChildren(el('span', '', '↻'), document.createTextNode(state.readOnly ? ' GitHub에서 점검 실행 ↗' : running ? ' 전체 점검 중' : ' 지금 전체 점검'));
+    document.querySelector('.refresh-label').replaceChildren(el('span', 'dot dot-blue'), document.createTextNode(state.readOnly ? ' 1분마다 갱신' : ' 5초마다 갱신'));
     if (state.watcherError) $('action-message').textContent = '배포 변경 감시 오류: ' + state.watcherError;
     const checked = results.filter((row) => row.checkedAt && row.status !== 'pending').length;
     const percent = total ? Math.min(100, Math.round(checked / total * 100)) : 0;
@@ -192,8 +194,9 @@
   async function refresh() {
     if (fetching) return;
     fetching = true;
+    lastFetchAt = Date.now();
     try {
-      const response = await fetch(new URL(document.querySelector('meta[name="monitor-report"]')?.content || 'api/status', document.baseURI), { cache: 'no-store', signal: AbortSignal.timeout(12_000) });
+      const response = await fetch(new URL(document.querySelector('meta[name="monitor-report"]')?.content || 'api/status', document.baseURI), { cache: 'no-cache', signal: AbortSignal.timeout(12_000) });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const next = await response.json();
       if (!next || !Array.isArray(next.results)) throw new Error('올바른 점검 결과를 받지 못했습니다');
@@ -226,5 +229,5 @@
   $('group-filter').addEventListener('change', renderResults);
   $('search').addEventListener('input', renderResults);
   refresh();
-  setInterval(refresh, 5_000);
+  setInterval(() => { if (!state?.readOnly || Date.now() - lastFetchAt >= 60_000) refresh(); }, 5_000);
 })();
