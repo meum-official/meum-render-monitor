@@ -34,6 +34,10 @@ export function fingerprintParts(html, pageUrl) {
   for (const match of html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)) {
     const type = attr(match[1], 'type');
     if (type === 'module' || type === 'importmap') inline.push(match[2].trim());
+    if (type === 'importmap') {
+      const map = JSON.parse(match[2]);
+      for (const value of Object.values(map.imports || {})) if (typeof value === 'string') assets.add(new URL(value, pageUrl).href);
+    }
   }
   if (!assets.size && !inline.length) throw new Error('HTML에서 배포 자산을 확인할 수 없습니다.');
   return { assets: [...assets].sort(), entries: [...entries].sort(), inline };
@@ -52,7 +56,14 @@ export async function fingerprint(url, fetcher = fetch) {
   if (parts.entries.length > 12) throw new Error('배포 진입 스크립트가 12개를 넘습니다. 확인 범위를 조정해 주세요.');
   const entryHashes = [];
   for (const entry of parts.entries) entryHashes.push([entry, hash(await get(entry))]);
-  return hash(JSON.stringify({ assets: parts.assets, inline: parts.inline, entryHashes }));
+  const linkedMetadata = [];
+  const ownAssets = parts.assets.filter(asset => new URL(asset).origin === pageUrl.origin && !parts.entries.includes(asset));
+  if (ownAssets.length > 64) throw new Error('배포 연결 자산이 64개를 넘습니다. 확인 범위를 조정해 주세요.');
+  for (const asset of ownAssets) {
+    const response = await fetcher(asset, { method: 'HEAD', signal: AbortSignal.timeout(20_000), redirect: 'error', headers: { 'cache-control': 'no-cache' } });
+    linkedMetadata.push([asset, response.status || 200, response.headers?.get('etag') || '', response.headers?.get('last-modified') || '', response.headers?.get('content-length') || '']);
+  }
+  return hash(JSON.stringify({ assets: parts.assets, inline: parts.inline, entryHashes, linkedMetadata }));
 }
 
 export function decideGate({ previous, fingerprints, errors = [], mode = 'after-deploy', eventName, manualMode, now = Date.now() }) {
@@ -62,9 +73,10 @@ export function decideGate({ previous, fingerprints, errors = [], mode = 'after-
   const changed = !first && Object.entries(fingerprints).some(([url, value]) => previous.fingerprints[url] !== value);
   const deployed = eventName === 'repository_dispatch';
   const manual = eventName === 'workflow_dispatch';
+  const newFailure = errors.length > 0 && JSON.stringify(errors) !== JSON.stringify(previous?.errors || []);
   let watchUntil = previous?.watchUntil || null;
   let reason = 'outside-deploy-window';
-  if (first || changed || deployed || (manual && manualMode === 'burst6h') || errors.length) {
+  if (first || changed || deployed || (manual && manualMode === 'burst6h') || newFailure) {
     watchUntil = new Date(now + sixHours).toISOString();
     reason = errors.length ? 'fingerprint-check-failed' : first ? 'first-run' : deployed ? 'deployment-dispatch' : changed ? 'deployment-changed' : 'manual-six-hours';
   }
@@ -181,6 +193,12 @@ async function selfTest() {
   const a = await fingerprint('https://meum.me/home', async url => ({ ok: true, text: async () => url.endsWith('/home') ? html : 'code-a' }));
   const b = await fingerprint('https://meum.me/home', async url => ({ ok: true, text: async () => url.endsWith('/home') ? html : 'code-b' }));
   assert.notEqual(a, b);
+  const mapHtml = html.replace('{"imports":{}}', '{"imports":{"preview":"/shared/preview.js"}}');
+  const mock = version => async (url, options) => ({ ok: true, status: 200, text: async () => url.endsWith('/home') ? mapHtml : 'unchanged entry', headers: { get: key => options?.method === 'HEAD' && key === 'etag' ? version : '' } });
+  assert.notEqual(await fingerprint('https://meum.me/home', mock('shared-v1')), await fingerprint('https://meum.me/home', mock('shared-v2')));
+  const outage = decideGate({ previous: expired, fingerprints: {}, errors: ['offline'], now });
+  const repeated = decideGate({ previous: { ...outage, watchUntil: new Date(now - 1).toISOString() }, fingerprints: {}, errors: ['offline'], now });
+  assert.equal(repeated.shouldRun, false, 'unchanged outage must not reopen the six-hour window indefinitely');
   console.log('CI self-check passed: execution window, deployment detection, manual/dispatch modes, corrupt state, content fingerprint, continuation invalidation and stale pass removal.');
 }
 

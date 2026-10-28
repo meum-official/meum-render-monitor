@@ -122,6 +122,8 @@ jobs:
         if: steps.gate.outputs.should_run == 'true' && steps.tests.outcome == 'success'
         id: scan
         shell: bash
+        env:
+          MONITOR_STOP_AT: ${{ steps.gate.outputs.reason != 'manual-once' && steps.gate.outputs.watch_until || '' }}
         run: |
           echo "started_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
           set +e

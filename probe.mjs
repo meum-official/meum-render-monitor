@@ -83,6 +83,7 @@ export async function probe(browser, target, config, screenshotDirectory) {
       };
     }, rule);
     result.title = dom.title;
+    if (dom.accessGate) result.issues = result.issues.filter(x => x.kind !== 'render-timeout');
     if (dom.missing.length && !dom.accessGate) issue('required-content', `필수 화면 요소 없음: ${dom.missing.join(', ')}`);
     if (!dom.globalReady && !dom.accessGate) issue('3d-not-ready', '3D 엔진의 준비 완료를 확인하지 못했습니다.');
     if (dom.loading.length && !dom.accessGate) issue('loading', `로딩이 끝나지 않았습니다: ${dom.loading.join(', ')}`);

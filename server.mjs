@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { discover } from './discovery.mjs';
 import { launchBrowser, probe, safeMessage } from './probe.mjs';
+import { fingerprint as publicFingerprint } from './ci.mjs';
 
 export const ROOT = path.dirname(fileURLToPath(import.meta.url));
 export const DATA = path.resolve(process.env.DATA_DIR || path.join(ROOT, 'data'));
@@ -117,23 +118,9 @@ export async function runScan(config, state, persist, { stopAt = Infinity, signa
 }
 
 export async function deploymentFingerprint(config) {
-  const hash = createHash('sha256');
-  for (const url of config.fingerprintUrls || ['https://meum.me/home', 'https://archive.meum.me/']) {
-    const response = await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(20000) });
-    if (!response.ok) throw new Error(`배포 확인 HTTP ${response.status}: ${url}`);
-    const html = await response.text();
-    const scripts = [...html.matchAll(/<script\b[^>]*\bsrc=["']([^"']+)["'][^>]*>/gi)].map(x => new URL(x[1], url).href).filter(x => config.origins.includes(new URL(x).origin));
-    const styles = [...html.matchAll(/<link\b[^>]*>/gi)].filter(m => /\brel=["'](?:stylesheet|modulepreload)["']/.test(m[0])).map(m => m[0].match(/\bhref=["']([^"']+)["']/)?.[1]).filter(Boolean).map(x => new URL(x, url).href).filter(x => config.origins.includes(new URL(x).origin));
-    const maps = [...html.matchAll(/<script\b[^>]*type=["']importmap["'][^>]*>([\s\S]*?)<\/script>/gi)].map(x => x[1]);
-    if (!scripts.length) throw new Error(`배포 진입 파일 없음: ${url}`);
-    hash.update(JSON.stringify([url, scripts, styles, maps]));
-    for (const script of [...scripts, ...styles].slice(0, 8)) {
-      const asset = await fetch(script, { method: 'HEAD', cache: 'no-store', signal: AbortSignal.timeout(20000) });
-      if (!asset.ok) throw new Error(`진입 파일 HTTP ${asset.status}`);
-      hash.update(`${asset.headers.get('etag')}|${asset.headers.get('last-modified')}|${asset.headers.get('content-length')}`);
-    }
-  }
-  return hash.digest('hex');
+  const values = [];
+  for (const url of config.fingerprintUrls || ['https://meum.me/home', 'https://archive.meum.me/']) values.push([url, await publicFingerprint(url)]);
+  return createHash('sha256').update(JSON.stringify(values)).digest('hex');
 }
 
 export function createMonitorServer(state, startScan) {
@@ -194,7 +181,9 @@ async function main() {
   const persist = () => saveJson(path.join(DATA, 'status.json'), state);
   if (process.argv.includes('--once')) {
     try {
-      await runScan(config, state, persist);
+      const stopAt = process.env.MONITOR_STOP_AT && state.mode === 'after-deploy' ? Date.parse(process.env.MONITOR_STOP_AT) : Infinity;
+      if (Number.isNaN(stopAt)) throw new Error('MONITOR_STOP_AT 시각이 올바르지 않습니다.');
+      await runScan(config, state, persist, { stopAt });
       process.exitCode = state.status === 'failed' || !state.discovery.complete || state.results.some(x => x.status === 'unknown') ? 2 : state.results.some(x => x.status === 'fail') ? 1 : 0;
     } finally { await unlock(); }
     return;
@@ -228,7 +217,7 @@ async function main() {
     try {
       if (state.mode === 'after-deploy') {
         const next = await deploymentFingerprint(config);
-        if (fingerprint && next !== fingerprint) { activeUntil = Date.now() + burstMs; state.nextRunAt = iso(); }
+        if (fingerprint && next !== fingerprint) { activeUntil = Date.now() + burstMs; state.nextRunAt = iso(); state.continuation = false; }
         fingerprint = next; state.watcherError = null;
       }
       if (!busy && Date.now() < activeUntil && state.nextRunAt && Date.now() >= Date.parse(state.nextRunAt)) startScan();
