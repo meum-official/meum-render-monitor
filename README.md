@@ -14,6 +14,8 @@
 
 `.github/workflows/render-check.yml`은 매시 17분에 공개 웹 배포 파일을 확인합니다. 처음 실행하거나 배포 변경을 감지하면 6시간 동안 매시간 브라우저 점검을 실행합니다. 창이 닫히면 가벼운 배포 확인만 합니다. Actions의 `Run workflow → burst6h`로 즉시 6시간 점검을 시작하거나 `once`로 한 번 점검할 수 있습니다. 실제 시작 시각은 GitHub 대기열에 따라 늦어질 수 있습니다.
 
+GitHub 정책상 공개 저장소에 60일간 활동이 없으면 예약 실행이 자동 중단될 수 있습니다. 이때 Actions에서 워크플로를 다시 활성화해야 합니다. [공식 정책과 재활성화 방법](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/disable-and-enable-workflows?tool=webui)을 참고하세요. 오래된 화면 결과는 대시보드에서 회색으로 표시합니다.
+
 공개 웹 파일에 드러나지 않는 백엔드 배포는 배포 완료 후 다음 이벤트로 알립니다. 이 프로그램은 믐의 배포 절차에 이 명령을 자동으로 삽입하지 않습니다.
 
 ```sh
