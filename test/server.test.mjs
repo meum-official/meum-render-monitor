@@ -172,13 +172,17 @@ test('configured authentication protects API, dashboard, screenshots and scan ac
 test('configuration rejects zero navigation/render timeouts and zero artifact retention', async () => {
   const current = JSON.parse(await readFile(path.join(monitor.ROOT, 'config.json'), 'utf8'));
   const filename = path.join(directory, 'config.json');
+  const inheritedRetention = process.env.RETAINED_RUNS;
   process.env.CONFIG_PATH = filename;
   try {
+    delete process.env.RETAINED_RUNS;
     for (const field of ['navigationTimeoutMs', 'renderTimeoutMs', 'retainedRuns']) {
       await writeFile(filename, JSON.stringify({ ...current, [field]: 0 }));
       await assert.rejects(() => monitor.loadConfig(), undefined, field);
     }
   } finally {
+    if (inheritedRetention === undefined) delete process.env.RETAINED_RUNS;
+    else process.env.RETAINED_RUNS = inheritedRetention;
     if (original.CONFIG_PATH === undefined) delete process.env.CONFIG_PATH;
     else process.env.CONFIG_PATH = original.CONFIG_PATH;
   }
