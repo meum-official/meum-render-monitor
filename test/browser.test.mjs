@@ -49,7 +49,7 @@ describe('real Chromium render checks using only local HTTP fixtures', { skip: !
         '/missing-image': `${healthy}<img width="400" height="180" src="/missing-image.png" alt="Exhibition artwork">`,
         '/password': `${healthy}<section class="exhibition-password-dialog" role="dialog">Enter the exhibition password to continue.</section>`,
         '/unknown': healthy,
-        '/preview-with-asset-error': `<div class="preview2"><div class="hero__content"><h1>Public preview fixture</h1>${paragraph}</div><div class="hero__actions"><button class="button--hero" onclick="window.open('/meum-lite-viewer?r=fixture', '_blank')">Enter exhibition</button></div></div><script src="/missing-app.js"></script>`,
+        '/preview-with-asset-error': `<div class="preview2"><div class="hero__content"><h1>Public preview fixture</h1>${paragraph}</div><div class="hero__actions"><button class="button--hero" onclick="window.open('/meum-lite-viewer?r=fixture', '_blank')">Enter exhibition</button></div></div>${new URL(request.url, 'http://localhost').searchParams.has('healthy') ? '' : '<script src="/missing-app.js"></script>'}`,
         '/plan': `<p>Loading pricing</p><script>setTimeout(() => { history.replaceState({}, '', '/en/pricing'); document.body.innerHTML='<main class="international-pricing"><header><h1>International pricing</h1></header><div class="plan-grid"><article>${paragraph}</article></div></main>'; }, 50);</script>`,
       };
       response.writeHead(pathname === '/not-found' ? 404 : 200, { 'Content-Type': 'text/html; charset=utf-8' });
@@ -180,6 +180,9 @@ describe('real Chromium render checks using only local HTTP fixtures', { skip: !
       assert.equal(result.status, 'fail');
       assert.ok(hasIssue(result, 'http-resource'));
       assert.equal(result.discoveredPages?.[0].url, `${origin}/meum-lite-viewer?r=fixture`);
+      const healthyEntry = await check('/preview-with-asset-error?healthy=1', { selectors: ['.preview2 .hero__content h1', '.hero__actions .button--hero'], loading: [], errors: [] }, { group: '전시 프리뷰' });
+      assert.equal(healthyEntry.status, 'pass', JSON.stringify(healthyEntry.issues));
+      assert.equal(healthyEntry.discoveredPages?.[0].url, `${origin}/meum-lite-viewer?r=fixture`);
     } finally { delete config.followViewerEntries; }
   });
 

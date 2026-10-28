@@ -61,7 +61,10 @@ export async function fingerprint(url, fetcher = fetch) {
   if (ownAssets.length > 64) throw new Error('배포 연결 자산이 64개를 넘습니다. 확인 범위를 조정해 주세요.');
   for (const asset of ownAssets) {
     const response = await fetcher(asset, { method: 'HEAD', signal: AbortSignal.timeout(20_000), redirect: 'error', headers: { 'cache-control': 'no-cache' } });
-    linkedMetadata.push([asset, response.status || 200, response.headers?.get('etag') || '', response.headers?.get('last-modified') || '', response.headers?.get('content-length') || '']);
+    const status = response.status || 200;
+    const etag = (response.headers?.get('etag') || '').replace(/^W\//, '');
+    const version = status >= 200 && status < 300 ? etag || `${response.headers?.get('last-modified') || ''}|${response.headers?.get('content-length') || ''}` : '';
+    linkedMetadata.push([asset, status, version]);
   }
   return hash(JSON.stringify({ assets: parts.assets, inline: parts.inline, entryHashes, linkedMetadata }));
 }
@@ -196,6 +199,8 @@ async function selfTest() {
   const mapHtml = html.replace('{"imports":{}}', '{"imports":{"preview":"/shared/preview.js"}}');
   const mock = version => async (url, options) => ({ ok: true, status: 200, text: async () => url.endsWith('/home') ? mapHtml : 'unchanged entry', headers: { get: key => options?.method === 'HEAD' && key === 'etag' ? version : '' } });
   assert.notEqual(await fingerprint('https://meum.me/home', mock('shared-v1')), await fingerprint('https://meum.me/home', mock('shared-v2')));
+  const representation = weak => async url => ({ ok: true, status: 200, text: async () => url.endsWith('/home') ? html : 'same code', headers: { get: key => key === 'etag' ? `${weak ? 'W/' : ''}"same-version"` : weak ? '100' : '200' } });
+  assert.equal(await fingerprint('https://meum.me/home', representation(true)), await fingerprint('https://meum.me/home', representation(false)), 'cache encoding and weak ETags are not a new deployment');
   const outage = decideGate({ previous: expired, fingerprints: {}, errors: ['offline'], now });
   const repeated = decideGate({ previous: { ...outage, watchUntil: new Date(now - 1).toISOString() }, fingerprints: {}, errors: ['offline'], now });
   assert.equal(repeated.shouldRun, false, 'unchanged outage must not reopen the six-hour window indefinitely');

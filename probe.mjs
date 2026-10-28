@@ -126,7 +126,7 @@ export async function probe(browser, target, config, screenshotDirectory) {
         const isViewer = raw => { const u = new URL(raw); return config.origins.includes(u.origin) && (u.pathname === '/meum-lite-viewer' || /\/viewer(?:\/|$)/.test(u.pathname)); };
         // Capture the public entry URL, then render it separately with a fresh guest context.
         await context.route('**/*', async route => {
-          if (route.request().isNavigationRequest() && isViewer(route.request().url())) { viewerUrl = route.request().url(); await route.abort(); }
+          if (route.request().isNavigationRequest() && isViewer(route.request().url())) { viewerUrl = route.request().url(); await route.abort('aborted'); }
           else await route.continue();
         });
         try {
