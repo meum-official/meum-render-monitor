@@ -34,6 +34,9 @@ describe('real Chromium render checks using only local HTTP fixtures', { skip: !
         response.end('Fixture image missing');
         return;
       }
+      if (pathname === '/missing-app.js') {
+        response.writeHead(404, { 'Content-Type': 'text/javascript' }); response.end(''); return;
+      }
       const fixtures = {
         '/healthy': healthy,
         '/crash': `${healthy}<script>setTimeout(() => { throw new Error('fixture app initialized twice'); }, 10);</script>`,
@@ -46,6 +49,7 @@ describe('real Chromium render checks using only local HTTP fixtures', { skip: !
         '/missing-image': `${healthy}<img width="400" height="180" src="/missing-image.png" alt="Exhibition artwork">`,
         '/password': `${healthy}<section class="exhibition-password-dialog" role="dialog">Enter the exhibition password to continue.</section>`,
         '/unknown': healthy,
+        '/preview-with-asset-error': `<div class="preview2"><div class="hero__content"><h1>Public preview fixture</h1>${paragraph}</div><div class="hero__actions"><button class="button--hero" onclick="window.open('/meum-lite-viewer?r=fixture', '_blank')">Enter exhibition</button></div></div><script src="/missing-app.js"></script>`,
         '/plan': `<p>Loading pricing</p><script>setTimeout(() => { history.replaceState({}, '', '/en/pricing'); document.body.innerHTML='<main class="international-pricing"><header><h1>International pricing</h1></header><div class="plan-grid"><article>${paragraph}</article></div></main>'; }, 50);</script>`,
       };
       response.writeHead(pathname === '/not-found' ? 404 : 200, { 'Content-Type': 'text/html; charset=utf-8' });
@@ -71,13 +75,14 @@ describe('real Chromium render checks using only local HTTP fixtures', { skip: !
     }
   });
 
-  const check = async (pathname, override = rule) => {
+  const check = async (pathname, override = rule, targetPatch = {}) => {
     const target = {
       id: (++sequence).toString(16).padStart(20, '0'),
       url: `${origin}${pathname}`,
       name: pathname,
       viewport: { name: 'desktop', width: 1280, height: 800 },
       ...(override ? { rule: override } : {}),
+      ...targetPatch,
     };
     return probe(browser, target, config, directory);
   };
@@ -166,6 +171,16 @@ describe('real Chromium render checks using only local HTTP fixtures', { skip: !
     });
     assert.equal(result.status, 'pass', JSON.stringify(result.issues));
     assert.equal(result.finalUrl, `${origin}/en/pricing`);
+  });
+
+  it('still discovers the public viewer when a rendered preview has an asset error', async () => {
+    config.followViewerEntries = true;
+    try {
+      const result = await check('/preview-with-asset-error', { selectors: ['.preview2 .hero__content h1', '.hero__actions .button--hero'], loading: [], errors: [] }, { group: '전시 프리뷰' });
+      assert.equal(result.status, 'fail');
+      assert.ok(hasIssue(result, 'http-resource'));
+      assert.equal(result.discoveredPages?.[0].url, `${origin}/meum-lite-viewer?r=fixture`);
+    } finally { delete config.followViewerEntries; }
   });
 
   it('resumes the next unchecked page after a limited scan without replacing earlier evidence', async () => {

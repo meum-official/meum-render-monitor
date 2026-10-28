@@ -119,7 +119,7 @@ export async function probe(browser, target, config, screenshotDirectory) {
     result.status = result.issues.length ? 'fail' : dom.accessGate || rule.unsupported ? 'unknown' : 'pass';
     if (dom.accessGate) issue('access-required', '입장/비밀번호 안내 화면으로 실제 관람 장면은 미확인입니다.');
     if (rule.unsupported) issue('contract', '이 경로의 필수 화면 검사 기준을 등록해야 합니다.');
-    if (config.followViewerEntries && target.group === '전시 프리뷰' && result.status === 'pass') {
+    if (config.followViewerEntries && target.group === '전시 프리뷰' && !dom.accessGate && !dom.missing.length && !dom.loading.length && !dom.errors.length) {
       const button = page.locator('.hero__actions .button--hero').first();
       if (await button.isEnabled()) {
         let viewerUrl;
@@ -138,7 +138,7 @@ export async function probe(browser, target, config, screenshotDirectory) {
           const clean = new URL(viewerUrl);
           for (const key of [...clean.searchParams.keys()]) if (!['r', 'room_id', 'roomId'].includes(key)) clean.searchParams.delete(key);
           result.discoveredPages = [{ url: clean.href, name: `${target.name} · 3D 관람`, group: '3D 관람', discoveredFrom: target.url }];
-        } else { issue('entry-discovery', '관람 버튼의 실제 목적지를 확인하지 못했습니다.'); result.status = 'unknown'; }
+        } else { issue('entry-discovery', '관람 버튼의 실제 목적지를 확인하지 못했습니다.'); if (result.status === 'pass') result.status = 'unknown'; }
       }
     }
     if (result.status === 'pass' && result.issues.length) result.status = 'fail';
