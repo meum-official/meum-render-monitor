@@ -1,0 +1,30 @@
+# Use this folder as a standalone repository. GitHub Actions builds site/ from
+# actual browser results; Netlify serves that read-only snapshot only.
+[build]
+  publish = "site"
+
+[[redirects]]
+  from = "/api/status"
+  to = "/status.json"
+  status = 200
+  force = true
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "same-origin"
+    X-Frame-Options = "DENY"
+
+[[headers]]
+  for = "/status.json"
+  [headers.values]
+    Cache-Control = "no-store, max-age=0"
+
+[[headers]]
+  for = "/api/status"
+  [headers.values]
+    Cache-Control = "no-store, max-age=0"
+
+# Access protection is configured on the Netlify site, not by putting a token
+# into this public bundle. Keep the GitHub repository private for private logs.

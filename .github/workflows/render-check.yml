@@ -1,0 +1,237 @@
+name: MEUM external render check
+
+on:
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+    inputs:
+      run_mode:
+        description: '한 번 점검하거나, 지금부터 6시간 동안 매시간 점검합니다.'
+        required: true
+        default: once
+        type: choice
+        options: [once, burst6h]
+      scan_minutes:
+        description: '한 실행의 브라우저 점검 한도(미완료는 이어감)'
+        required: true
+        default: '55'
+        type: choice
+        options: ['2', '55']
+  repository_dispatch:
+    types: [meum-deployed]
+
+permissions:
+  contents: read
+  actions: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: meum-render-monitor
+  cancel-in-progress: false
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 70
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    env:
+      DATA_DIR: ${{ github.workspace }}/data
+      MONITOR_MODE: ${{ vars.MONITOR_MODE || 'after-deploy' }}
+      MONITOR_MANUAL_MODE: ${{ inputs.run_mode || 'once' }}
+      MONITOR_WORKFLOW_URL: ${{ github.server_url }}/${{ github.repository }}/actions/workflows/render-check.yml
+      SCAN_MAX_MINUTES: ${{ inputs.scan_minutes || '55' }}
+      RETAINED_RUNS: '2'
+      CACHE_KEY: meum-monitor-state-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Find previous state without treating API failure as first run
+        id: cache_lookup
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "MONITOR_JOB_STARTED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_ENV"
+          gh api --method GET "/repos/$GITHUB_REPOSITORY/actions/caches" -f key='meum-monitor-state-' -f ref="$GITHUB_REF" -f sort=created_at -f direction=desc -f per_page=100 > "$RUNNER_TEMP/monitor-caches.json"
+          latest_key=$(jq -r '[.actions_caches[] | select(.key | startswith("meum-monitor-state-"))] | sort_by([.created_at, .id]) | last | .key // empty' "$RUNNER_TEMP/monitor-caches.json")
+          echo "latest_key=$latest_key" >> "$GITHUB_OUTPUT"
+
+      - name: Restore latest monitor state from cache
+        id: cache_restore
+        if: steps.cache_lookup.outputs.latest_key != ''
+        uses: actions/cache/restore@v4
+        with:
+          key: ${{ steps.cache_lookup.outputs.latest_key }}
+          restore-keys: meum-monitor-state-
+          fail-on-cache-miss: true
+          path: |
+            data/
+            !data/runner.lock
+            !data/**/*.tmp
+            !data/inventory.json
+
+      - name: Validate restored state
+        env:
+          EXPECTED_CACHE_KEY: ${{ steps.cache_lookup.outputs.latest_key }}
+          RESTORED_CACHE_KEY: ${{ steps.cache_restore.outputs.cache-matched-key }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$DATA_DIR"
+          if [ -n "$EXPECTED_CACHE_KEY" ]; then
+            test "$RESTORED_CACHE_KEY" = "$EXPECTED_CACHE_KEY"
+            test -s "$DATA_DIR/ci-state.json"
+            node -e 'const fs=require("node:fs");const s=JSON.parse(fs.readFileSync(process.env.DATA_DIR+"/ci-state.json","utf8"));if(s.schemaVersion!==1||!s.fingerprints)process.exit(1)'
+            echo 'MONITOR_STATE_RESTORE=restored' >> "$GITHUB_ENV"
+          else
+            echo 'MONITOR_STATE_RESTORE=none' >> "$GITHUB_ENV"
+            echo '이전 점검 캐시 없음: 첫 점검으로 시작합니다.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo 'MONITOR_STATE_READY=true' >> "$GITHUB_ENV"
+
+      - name: Check deployment fingerprint and six-hour window
+        id: gate
+        timeout-minutes: 3
+        run: node ci.mjs gate
+
+      - name: Install tester only when a browser check is due
+        if: steps.gate.outputs.should_run == 'true'
+        run: npm ci --no-audit --no-fund
+
+      - name: Install Chromium
+        if: steps.gate.outputs.should_run == 'true'
+        run: npx playwright install --with-deps chromium
+
+      - name: Verify monitor logic
+        if: steps.gate.outputs.should_run == 'true'
+        id: tests
+        continue-on-error: true
+        run: |
+          node ci.mjs self-test
+          npm test
+          npm run test:browser
+
+      - name: Scan public pages sequentially
+        if: steps.gate.outputs.should_run == 'true' && steps.tests.outcome == 'success'
+        id: scan
+        shell: bash
+        run: |
+          echo "started_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+          set +e
+          node server.mjs --once
+          result=$?
+          echo "exit_code=$result" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Export actual report, including partial results
+        id: export
+        if: always() && steps.gate.outputs.should_run == 'true' && env.MONITOR_STATE_READY == 'true'
+        env:
+          MONITOR_SCAN_STARTED_AT: ${{ steps.scan.outputs.started_at || env.MONITOR_JOB_STARTED_AT }}
+        run: node export-report.mjs
+
+      - name: Enforce one-gigabyte state limit
+        id: cache_size
+        if: always() && env.MONITOR_STATE_READY == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          bytes=$(du -sb "$DATA_DIR" | cut -f1)
+          if [ "$bytes" -gt 1073741824 ]; then
+            echo 'allowed=false' >> "$GITHUB_OUTPUT"
+            echo '점검 상태가 1GB를 초과해 캐시 저장을 중단했습니다. 이전 캐시는 유지합니다. 캡처 보존 범위를 줄여야 합니다.' >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          echo 'allowed=true' >> "$GITHUB_OUTPUT"
+
+      - name: Save state in the free Actions cache
+        id: cache_save
+        if: always() && steps.cache_size.outputs.allowed == 'true'
+        uses: actions/cache/save@v4
+        with:
+          key: ${{ env.CACHE_KEY }}
+          path: |
+            data/
+            !data/runner.lock
+            !data/**/*.tmp
+            !data/inventory.json
+
+      - name: Keep only the two newest monitor caches
+        if: always() && steps.cache_save.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api --method GET --paginate --slurp "/repos/$GITHUB_REPOSITORY/actions/caches" -f key='meum-monitor-state-' -f sort=created_at -f direction=desc -f per_page=100 > "$RUNNER_TEMP/monitor-cache-cleanup.json"
+          jq -e --arg key "$CACHE_KEY" '[.[].actions_caches[] | select(.key | startswith("meum-monitor-state-"))] | any(.key == $key)' "$RUNNER_TEMP/monitor-cache-cleanup.json" > /dev/null
+          jq -r '[.[].actions_caches[] | select(.key | startswith("meum-monitor-state-"))] | sort_by([.created_at, .id]) | reverse | .[2:][] | .id' "$RUNNER_TEMP/monitor-cache-cleanup.json" > "$RUNNER_TEMP/monitor-old-cache-ids.txt"
+          while IFS= read -r cache_id; do
+            [[ "$cache_id" =~ ^[0-9]+$ ]]
+            gh api --method DELETE "/repos/$GITHUB_REPOSITORY/actions/caches/$cache_id"
+          done < "$RUNNER_TEMP/monitor-old-cache-ids.txt"
+
+      - name: Enforce one-hundred-megabyte Pages limit
+        id: pages_size
+        if: always() && steps.export.outcome == 'success'
+        shell: bash
+        run: |
+          set -euo pipefail
+          bytes=$(du -sb site | cut -f1)
+          if [ "$bytes" -gt 104857600 ]; then
+            echo 'GitHub Pages 내보내기가 100MB를 초과해 게시를 중단했습니다. 이전 게시 화면은 유지됩니다.' >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          echo 'allowed=true' >> "$GITHUB_OUTPUT"
+
+      - name: Upload temporary GitHub Pages package
+        id: pages_artifact
+        if: always() && steps.pages_size.outputs.allowed == 'true'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site/
+          retention-days: 1
+
+      - name: Deploy GitHub Pages dashboard
+        id: deployment
+        if: always() && steps.pages_artifact.outcome == 'success'
+        uses: actions/deploy-pages@v4
+        with:
+          timeout: 300000
+
+      - name: Delete the exact temporary Pages package after deployment attempt
+        if: always() && steps.pages_artifact.outputs.artifact_id != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PAGES_ARTIFACT_ID: ${{ steps.pages_artifact.outputs.artifact_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$PAGES_ARTIFACT_ID" =~ ^[0-9]+$ ]]
+          gh api --method DELETE "/repos/$GITHUB_REPOSITORY/actions/artifacts/$PAGES_ARTIFACT_ID"
+
+      - name: Summarize observed results
+        if: always() && steps.gate.outputs.should_run == 'true'
+        env:
+          MONITOR_SCAN_EXIT_CODE: ${{ steps.scan.outputs.exit_code }}
+          MONITOR_PAGES_URL: ${{ steps.deployment.outputs.page_url }}
+        run: node ci.mjs summary
+
+      - name: Fail the job when testing failed or coverage was incomplete
+        if: always() && steps.gate.outputs.should_run == 'true'
+        env:
+          TEST_OUTCOME: ${{ steps.tests.outcome }}
+          SCAN_EXIT_CODE: ${{ steps.scan.outputs.exit_code }}
+        shell: bash
+        run: |
+          if [ "$TEST_OUTCOME" != 'success' ] || [ "$SCAN_EXIT_CODE" != '0' ]; then
+            echo '문제 또는 미확인 페이지가 있습니다. GitHub Pages 보고서와 검사 로그를 확인하세요.'
+            exit 1
+          fi
