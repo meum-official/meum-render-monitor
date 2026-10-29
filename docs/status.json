@@ -1,0 +1,113 @@
+{
+  "schemaVersion": 1,
+  "status": "idle",
+  "runId": null,
+  "inventorySignature": null,
+  "startedAt": null,
+  "attemptStartedAt": null,
+  "completedAt": null,
+  "intervalMinutes": 60,
+  "continuation": false,
+  "readOnly": true,
+  "sampling": null,
+  "discovery": {
+    "complete": false,
+    "source": "공개 목록·비인증 입장 조건을 확인한 대표 표본",
+    "totalExhibitions": 0,
+    "totalTargets": 0,
+    "errors": [
+      "공개 목록 수집 또는 점검을 완료하지 못했습니다. 실행 로그를 확인하세요.",
+      "대표 표본 선택 메타가 없어 점검 범위를 확인할 수 없습니다."
+    ],
+    "sampling": null
+  },
+  "results": [],
+  "history": [],
+  "withheldResults": 0,
+  "coverageOmittedResults": 0,
+  "identityWithheldResults": 0,
+  "businessVerification": {
+    "required": true,
+    "status": "blocked",
+    "checkedAt": null,
+    "reason": "실제 앱의 인증·저장·결제 업무는 실행하지 않았습니다. 승인된 실제 앱 adapter가 등록되지 않았습니다.",
+    "cases": [
+      {
+        "id": "viewer-settings-owner",
+        "status": "blocked",
+        "evidenceScope": "blocked",
+        "checkedAt": null
+      },
+      {
+        "id": "viewer-settings-invited-admin",
+        "status": "blocked",
+        "evidenceScope": "blocked",
+        "checkedAt": null
+      },
+      {
+        "id": "viewer-settings-readonly",
+        "status": "blocked",
+        "evidenceScope": "blocked",
+        "checkedAt": null
+      },
+      {
+        "id": "auto-install",
+        "status": "blocked",
+        "evidenceScope": "blocked",
+        "checkedAt": null
+      },
+      {
+        "id": "survey-target-included",
+        "status": "blocked",
+        "evidenceScope": "blocked",
+        "checkedAt": null
+      },
+      {
+        "id": "survey-target-excluded",
+        "status": "blocked",
+        "evidenceScope": "blocked",
+        "checkedAt": null
+      },
+      {
+        "id": "survey-submit-admin-read",
+        "status": "blocked",
+        "evidenceScope": "blocked",
+        "checkedAt": null
+      },
+      {
+        "id": "payment-success-immediate",
+        "status": "blocked",
+        "evidenceScope": "blocked",
+        "checkedAt": null
+      },
+      {
+        "id": "payment-success-scheduled",
+        "status": "blocked",
+        "evidenceScope": "blocked",
+        "checkedAt": null
+      },
+      {
+        "id": "payment-failure-cancel",
+        "status": "blocked",
+        "evidenceScope": "blocked",
+        "checkedAt": null
+      },
+      {
+        "id": "payment-duplicate-callback",
+        "status": "blocked",
+        "evidenceScope": "blocked",
+        "checkedAt": null
+      }
+    ]
+  },
+  "exportedAt": "2026-10-29T04:21:26.629Z",
+  "nextRunAt": null,
+  "workflowUrl": "https://github.com/meum-official/meum-render-monitor/actions/workflows/render-check.yml",
+  "scheduleDescription": "매시간 배포 변경을 확인하며, 배포 후 6시간 동안 공개 대표 표본을 점검합니다. 예약 실행은 지연될 수 있습니다.",
+  "evidence": {
+    "copiedScreenshots": 0,
+    "omittedScreenshots": 0,
+    "screenshotsPublic": false,
+    "maxSiteBytes": 104857600
+  }
+}

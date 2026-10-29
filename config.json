@@ -4,7 +4,9 @@
   "roomListUrl": "https://backend.meum.me/room/list",
   "fingerprintUrls": ["https://meum.me/home", "https://archive.meum.me/"],
   "followViewerEntries": true,
-  "priorityPages": ["https://meum.me/exhibition/preview/4348", "https://meum.me/exhibition/preview/4350"],
+  "sampling": { "enabled": true, "previews": 3, "invitations": 3, "viewers": 3, "maxRoomPages": 2, "maxCandidateChecks": 12 },
+  "captureScreenshots": false,
+  "priorityPages": [],
   "extraPages": [
     { "url": "https://meum.me/home", "name": "믐 홈" },
     { "url": "https://meum.me/exhibition", "name": "공개 전시 목록" },

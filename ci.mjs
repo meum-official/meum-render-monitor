@@ -76,7 +76,8 @@ export function decideGate({ previous, fingerprints, errors = [], mode = 'after-
   const changed = !first && Object.entries(fingerprints).some(([url, value]) => previous.fingerprints[url] !== value);
   const deployed = eventName === 'repository_dispatch';
   const manual = eventName === 'workflow_dispatch';
-  const newFailure = errors.length > 0 && JSON.stringify(errors) !== JSON.stringify(previous?.errors || []);
+  const errorFingerprint = hash(JSON.stringify(errors));
+  const newFailure = errors.length > 0 && errorFingerprint !== (previous?.errorFingerprint || hash(JSON.stringify(previous?.errors || [])));
   let watchUntil = previous?.watchUntil || null;
   let reason = 'outside-deploy-window';
   if (first || changed || deployed || (manual && manualMode === 'burst6h') || newFailure) {
@@ -98,6 +99,7 @@ export function decideGate({ previous, fingerprints, errors = [], mode = 'after-
     shouldRun,
     resetCycle: first || changed || deployed || errors.length > 0,
     errors,
+    errorFingerprint,
   };
 }
 
@@ -151,10 +153,12 @@ async function summarize() {
   const counts = { pass: 0, fail: 0, unknown: 0 };
   for (const row of report?.results || []) counts[['pass', 'fail'].includes(row.status) ? row.status : 'unknown']++;
   const message = [
-    '## 브라우저 점검 결과', '',
+    '## 공개 대표 표본의 브라우저 점검 결과', '',
     `- 검사 프로세스 종료 코드: ${exitCode ?? '미실행'}`,
     `- 정상 ${counts.pass} / 문제 ${counts.fail} / 미확인 ${counts.unknown}`,
-    `- 공개 목록 완전성: ${report?.discovery?.complete === true ? '확인됨' : '미확인'}`,
+    `- 표본 검사 범위: ${report?.discovery?.complete === true ? '확인됨' : '미확인 항목 있음'}`,
+    '- 전체 전시 전수 검사와 실제 앱 업무 11개의 검증은 포함하지 않습니다.',
+    ...(report?.discovery?.sampling ? [`- 표본 선택: ${report.discovery.sampling.selectionId}`, `- 프리뷰 ${report.discovery.sampling.previews?.length || 0} / 초대장 ${report.discovery.sampling.invitations?.length || 0} / 관람 ${report.discovery.sampling.viewers?.length || 0}`] : []),
     `- 완료 시각: ${report?.completedAt || '완료되지 않음'}`,
     process.env.MONITOR_PAGES_URL ? `- GitHub Pages 대시보드: ${process.env.MONITOR_PAGES_URL}` : '- GitHub Pages 배포가 완료되지 않았습니다. 이번 실행의 검사 로그를 확인해 주세요.', '',
   ].join('\n');
@@ -204,6 +208,8 @@ async function selfTest() {
   const outage = decideGate({ previous: expired, fingerprints: {}, errors: ['offline'], now });
   const repeated = decideGate({ previous: { ...outage, watchUntil: new Date(now - 1).toISOString() }, fingerprints: {}, errors: ['offline'], now });
   assert.equal(repeated.shouldRun, false, 'unchanged outage must not reopen the six-hour window indefinitely');
+  const publicCheckpoint = { ...outage, errors: undefined, watchUntil: new Date(now - 1).toISOString() };
+  assert.equal(decideGate({ previous: publicCheckpoint, fingerprints: {}, errors: ['offline'], now }).shouldRun, false, 'redacting raw errors must preserve the outage transition hash');
   console.log('CI self-check passed: execution window, deployment detection, manual/dispatch modes, corrupt state, content fingerprint, continuation invalidation and stale pass removal.');
 }
 

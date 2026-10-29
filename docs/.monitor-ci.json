@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "mode": "after-deploy",
+  "fingerprints": {},
+  "watchUntil": null,
+  "lastGateAt": null,
+  "reason": "outside-deploy-window",
+  "shouldRun": false,
+  "resetCycle": false,
+  "errorFingerprint": null
+}

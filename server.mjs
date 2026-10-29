@@ -58,17 +58,22 @@ export async function runScan(config, state, persist, { stopAt = Infinity, signa
   const cancel = () => { void browser?.close().catch(() => {}); };
   signal?.addEventListener('abort', cancel, { once: true });
   try {
-    const inventory = await discover(config);
+    const inventory = await discover(config, fetch, { sampling: previous?.discovery?.sampling });
     state.discovery = { ...inventory, pages: undefined, totalTargets: inventory.pages.length * config.viewports.length };
     state.results = inventory.pages.flatMap(page => config.viewports.map(viewport => ({ ...page, id: createHash('sha256').update(page.url + viewport.name).digest('hex').slice(0, 20), viewport, name: `${page.name}${config.viewports.length > 1 ? ` · ${viewport.name}` : ''}`, status: 'pending', checkedAt: null, issues: [], checks: [] })));
-    const definitions = await Promise.all(['contracts.mjs', 'probe.mjs', 'discovery.mjs'].map(name => readFile(path.join(ROOT, name), 'utf8')));
+    const definitions = await Promise.all(['contracts.mjs', 'probe.mjs', 'discovery.mjs', 'sampling.mjs', 'read-only-policy.mjs', 'server.mjs', 'package-lock.json'].map(name => readFile(path.join(ROOT, name), 'utf8')));
     const signature = createHash('sha256').update(JSON.stringify([config, state.results.map(x => x.id).sort(), definitions])).digest('hex');
     if (previous?.inventorySignature === signature) {
       const known = new Map(previous.results.map(x => [x.id, x]));
-      state.results = state.results.map(row => known.get(row.id)?.checkedAt ? known.get(row.id) : row);
+      state.results = state.results.map(row => {
+        const cached = known.get(row.id);
+        if (!cached?.checkedAt || !Number.isFinite(Date.parse(cached.checkedAt))) return row;
+        // Public checkpoints omit target details; use freshly validated URL/rule/viewport.
+        return { ...cached, ...row, status: cached.status, checkedAt: cached.checkedAt, issues: cached.issues || [], checks: cached.checks || [], durationMs: cached.durationMs, httpStatus: cached.httpStatus, screenshot: null };
+      });
       const sources = new Set(inventory.pages.map(x => x.url));
       const ids = new Set(state.results.map(x => x.id));
-      state.results.push(...previous.results.filter(x => x.discoveredFrom && sources.has(x.discoveredFrom) && !ids.has(x.id)).map(x => x.checkedAt ? x : { ...x, status: 'pending', issues: [] }));
+      if (!config.sampling?.enabled) state.results.push(...previous.results.filter(x => x.discoveredFrom && sources.has(x.discoveredFrom) && !ids.has(x.id)).map(x => x.checkedAt ? x : { ...x, status: 'pending', issues: [] }));
     } else if (previous) { state.runId = `run-${Date.now()}-${randomBytes(3).toString('hex')}`; state.startedAt = iso(); }
     state.inventorySignature = signature;
     await persist();
@@ -89,7 +94,7 @@ export async function runScan(config, state, persist, { stopAt = Infinity, signa
         break;
       }
       state.results[index] = await probe(browser, state.results[index], config, path.join(DATA, 'screenshots', state.runId));
-      for (const page of state.results[index].discoveredPages || []) {
+      for (const page of config.sampling?.enabled ? [] : state.results[index].discoveredPages || []) {
         for (const viewport of config.viewports) {
           const id = createHash('sha256').update(page.url + viewport.name).digest('hex').slice(0, 20);
           if (!state.results.some(row => row.id === id)) state.results.push({ ...page, id, viewport, status: 'pending', checkedAt: null, issues: [], checks: [] });
@@ -111,7 +116,7 @@ export async function runScan(config, state, persist, { stopAt = Infinity, signa
     state.completedAt = iso();
     const counts = { pass: 0, fail: 0, unknown: 0 };
     for (const row of state.results) counts[row.status === 'pass' ? 'pass' : row.status === 'fail' ? 'fail' : 'unknown']++;
-    state.history = [...(state.history || []), { runId: state.runId, completedAt: state.completedAt, ...counts, total: state.results.length, complete: state.discovery.complete && counts.unknown === 0 }].slice(-config.retainedRuns);
+    state.history = [...(state.history || []), { runId: state.runId, completedAt: state.completedAt, ...counts, total: state.results.length, complete: state.discovery.complete && counts.unknown === 0, scope: config.sampling?.enabled ? 'representative-render-only' : 'legacy-render-only' }].slice(-config.retainedRuns);
     await persist();
     await retainRuns(config.retainedRuns);
   }

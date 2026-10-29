@@ -21,7 +21,7 @@
     return value && Number.isFinite(date.getTime()) ? dateFormat.format(date) : '아직 점검하지 않음';
   }
   function isStale(result) {
-    const checked = new Date(result.checkedAt || state?.completedAt).getTime();
+    const checked = new Date(result.checkedAt || NaN).getTime();
     const ttl = Math.max(2 * (Number(state?.intervalMinutes) || 0), 60) * 60_000;
     return !connected || !Number.isFinite(checked) || Date.now() - checked > ttl;
   }
@@ -30,8 +30,9 @@
   }
   function safeLink(value, screenshot = false) {
     try {
+      if (typeof value !== 'string' || !value) return null;
       const url = new URL(screenshot && String(value).startsWith('/screenshots/') ? String(value).slice(1) : value, document.baseURI);
-      if (!['https:', 'http:'].includes(url.protocol)) return null;
+      if (!['https:', 'http:'].includes(url.protocol) || url.username || url.password) return null;
       if (screenshot && (url.origin !== window.location.origin || !url.pathname.startsWith(new URL('screenshots/', document.baseURI).pathname))) return null;
       return url.href;
     } catch { return null; }
@@ -53,16 +54,17 @@
     $('total-count').textContent = total.toLocaleString('ko-KR');
     for (const key of ['pass', 'fail', 'unknown']) $(key + '-count').textContent = counts[key].toLocaleString('ko-KR');
     const running = state.status === 'running';
-    const complete = state.discovery?.complete === true;
+    const sampling = state.sampling || state.discovery?.sampling;
+    const complete = state.discovery?.complete === true && sampling?.mode === 'representative-sample' && /^[a-f0-9]{20}$/.test(sampling.selectionId || '');
     let kind = 'unknown';
     let title = '아직 확인되지 않은 페이지가 있습니다';
     let description = '대기 중이거나 오래된 결과는 정상으로 표시하지 않습니다.';
     if (!connected) { title = '점검 서버에 연결할 수 없습니다'; description = '표시된 이전 결과의 현재 상태를 확인할 수 없습니다.'; }
-    else if (counts.fail) { kind = 'fail'; title = `${counts.fail.toLocaleString('ko-KR')}개 페이지에서 문제가 발견됐습니다`; description = running ? '나머지 페이지를 계속 점검하고 있습니다. 아래에서 오류와 화면을 확인하세요.' : '아래 빨간 표시의 페이지를 펼쳐 오류와 당시 화면을 확인하세요.'; }
-    else if (running) { kind = 'running'; title = '공개 페이지를 점검하고 있습니다'; description = '페이지를 실제 브라우저에서 순서대로 열고 렌더링 결과를 확인합니다.'; }
-    else if (state.status === 'failed') { title = '전체 점검을 완료하지 못했습니다'; description = '수집 및 실행 오류를 확인하세요. 미확인 페이지는 정상으로 표시하지 않습니다.'; }
-    else if (total > 0 && !counts.unknown && complete) { kind = 'pass'; title = '점검한 모든 페이지가 정상입니다'; description = `${total.toLocaleString('ko-KR')}개 페이지가 설정된 브라우저 검사 기준을 통과했습니다.`; }
-    else if (!complete && state.startedAt) { title = '공개 페이지 목록 수집을 확인해 주세요'; description = '목록이 완전하지 않아 서비스 전체가 정상이라고 판단할 수 없습니다.'; }
+    else if (counts.fail) { kind = 'fail'; title = `${counts.fail.toLocaleString('ko-KR')}개 표본에서 렌더링 문제가 발견됐습니다`; description = '아래 빨간 표시의 공개 표본에서 검사 근거를 확인하세요.'; }
+    else if (running) { kind = 'running'; title = '공개 대표 표본을 점검하고 있습니다'; description = '선택된 공개 경로를 실제 브라우저에서 순서대로 열어 확인합니다.'; }
+    else if (state.status === 'failed') { title = '이번 표본 점검을 완료하지 못했습니다'; description = '수집 및 실행 오류를 확인하세요. 미확인 페이지는 정상으로 표시하지 않습니다.'; }
+    else if (total > 0 && !counts.unknown && complete) { kind = 'pass'; title = '이번 공개 표본의 렌더링 검사 통과'; description = `${total.toLocaleString('ko-KR')}개 표본 경로가 화면 검사 기준을 통과했습니다. 실제 업무 동작은 미검증입니다.`; }
+    else if (!complete && state.startedAt) { title = '대표 표본 선택·수집을 확인해 주세요'; description = '선택 메타 또는 표본 수집이 완전하지 않아 이번 범위의 확인이 필요합니다.'; }
     else if (!total) { title = '첫 점검을 기다리고 있습니다'; description = '실제 검사 결과가 들어오면 페이지별 상태를 표시합니다.'; }
     $('overview-title').textContent = title;
     $('overview-description').textContent = description;
@@ -70,7 +72,7 @@
     $('completed-at').textContent = formatDate(state.completedAt);
     $('next-run').textContent = running ? '현재 점검 중' : state.nextRunAt ? formatDate(state.nextRunAt) : state.scheduleDescription || (state.mode === 'after-deploy' ? '배포 변경 감시 중' : '수동 실행');
     $('run-button').disabled = running || requestingRun || !connected || (state.readOnly && !safeLink(state.workflowUrl));
-    $('run-button').replaceChildren(el('span', '', '↻'), document.createTextNode(state.readOnly ? ' GitHub에서 점검 실행 ↗' : running ? ' 전체 점검 중' : ' 지금 전체 점검'));
+    $('run-button').replaceChildren(el('span', '', '↻'), document.createTextNode(state.readOnly ? ' GitHub에서 표본 점검 ↗' : running ? ' 표본 점검 중' : ' 지금 표본 점검'));
     document.querySelector('.refresh-label').replaceChildren(el('span', 'dot dot-blue'), document.createTextNode(state.readOnly ? ' 1분마다 갱신' : ' 5초마다 갱신'));
     if (state.watcherError) $('action-message').textContent = '배포 변경 감시 오류: ' + state.watcherError;
     const checked = results.filter((row) => row.checkedAt && row.status !== 'pending').length;
@@ -79,20 +81,30 @@
     $('progress-label').textContent = `${checked.toLocaleString('ko-KR')} / ${total.toLocaleString('ko-KR')} 페이지 확인${running ? ' · 점검 중' : ''}`;
     $('progress-percent').textContent = percent + '%';
     const badge = $('coverage-badge');
-    badge.textContent = !connected ? '연결 확인 필요' : complete ? '목록 수집 완료' : running ? '목록 수집 중 / 확인 필요' : '목록 완전성 미확인';
+    badge.textContent = !connected ? '연결 확인 필요' : complete ? '이번 표본 선택 확인' : running ? '표본 수집 중 / 확인 필요' : '표본 선택 미확인';
     badge.className = 'badge ' + (!connected ? 'unknown' : complete ? 'pass' : running ? 'running' : 'unknown');
     const exhibitions = Number(state.discovery?.totalExhibitions);
-    $('coverage-description').textContent = `공개 전시 ${Number.isFinite(exhibitions) ? exhibitions.toLocaleString('ko-KR') : '미확인'}개 · 점검 대상 ${total.toLocaleString('ko-KR')}페이지. ${complete ? '공개 목록 수집을 완료했습니다.' : '전체 공개 목록이 수집됐는지 아직 확인되지 않았습니다.'}`;
+    $('coverage-description').textContent = `수집 중 확인한 공개 전시 ${Number.isFinite(exhibitions) ? exhibitions.toLocaleString('ko-KR') : '미확인'}개 · 이번 점검 대상 ${total.toLocaleString('ko-KR')}경로. 전체 전시 전수 검사 결과가 아닙니다.`;
     $('coverage-source').textContent = state.discovery?.source ? '수집 경로: ' + String(state.discovery.source) : '';
     const errors = Array.isArray(state.discovery?.errors) ? state.discovery.errors : [];
     $('discovery-errors').hidden = !errors.length;
     $('discovery-errors').replaceChildren(...errors.map((error) => el('li', '', issueMessage(error))));
+    $('sampling-meta').textContent = sampling ? `선택 ${sampling.selectionId || '미확인'} · 선택 시각 ${formatDate(sampling.selectedAt)} · 공개·진행 중·비인증 입장 조건으로 선정` : '대표 표본 선택 메타가 없습니다. 이전 결과로 전체 서비스 상태를 판단할 수 없습니다.';
+    const pool = sampling?.pool;
+    $('sampling-pool').textContent = pool ? `후보 목록 ${Number.isSafeInteger(pool.listed) ? pool.listed : '미확인'} / ${Number.isSafeInteger(pool.declared) ? pool.declared : '미확인'}개 · ${Number.isSafeInteger(pool.pagesRead) ? pool.pagesRead : '미확인'}페이지 조회 · 공개 조건 확인 ${Number.isSafeInteger(pool.eligible) ? pool.eligible : '미확인'}개. ${pool.bounded ? '제한된 후보 목록에서 선정하므로 전체 공개 전시에 균등한 표본이 아닙니다.' : '전체 공개 전시에 대한 균등 표본을 보장하지 않습니다.'}` : '후보 목록 수집 범위가 미확인입니다. 전체 공개 전시에 균등한 표본으로 해석하지 마세요.';
+    const types = { previews: '프리뷰', invitations: '초대장', viewers: '관람' };
+    const entries = [];
+    for (const [key, label] of Object.entries(types)) for (const row of sampling?.[key] || []) entries.push(el('li', '', `${row.family === 'archive-viewer' ? `아카이브 관람 · 아카이브 ID ${row.roomId}` : `${label} · ID ${row.roomId} · 해시 ${row.hash}`} · ${row.eligible === true ? row.reason === 'active-public-archive' ? '공개·진행 중인 보존 전시' : row.reason === 'verified-curator-fallback' ? '검증된 공개 큐레이터 대체 경로' : '공개·진행 중·비인증 입장' : '현재 공개 조건 미확인'}`));
+    const families = { 'archive-viewer': '아카이브 관람', 'oneday-preview': '원데이 프리뷰', 'oneday-viewer': '원데이 관람', 'sample-invitation': '샘플 초대장' };
+    for (const row of sampling?.unavailable || []) entries.push(el('li', '', `${families[row.family] || row.type || '선택'} · ${row.roomId ? `ID ${row.roomId} · ` : ''}조건을 확인하지 못해 미확인으로 남겼습니다.`));
+    $('sampling-list').replaceChildren(...(entries.length ? entries : [el('li', '', '이번 실행에서 전시 표본을 아직 선택하지 못했습니다.')]));
   }
   function rowDetail(result) {
     const detail = el('div', 'page-detail');
     const evidence = el('div');
     evidence.append(el('p', 'detail-label', '검사 근거'));
     evidence.append(el('p', 'detail-meta', `그룹: ${result.group || '기타'} · 확인: ${formatDate(result.checkedAt)} · 응답: ${result.httpStatus ?? '미확인'} · 소요: ${Number.isFinite(result.durationMs) ? (result.durationMs / 1000).toFixed(1) + '초' : '미확인'}`));
+    if (result.policy?.readOnly) evidence.append(el('p', 'detail-meta', `읽기 전용 차단 · 서비스 요청 ${Number(result.policy.blockedServiceWrites || 0) + Number(result.policy.blockedServiceSockets || 0)}건 · 외부 분석 요청 ${Number(result.policy.blockedExternalWrites || 0) + Number(result.policy.blockedExternalSockets || 0)}건 (외부 분석 차단은 화면 판정을 바꾸지 않습니다)`));
     const issues = Array.isArray(result.issues) ? result.issues.map(issueMessage) : [];
     if (['pass', 'fail'].includes(result.status) && isStale(result)) issues.unshift(connected ? '이 결과는 오래되어 현재 상태를 미확인으로 표시합니다. 새 점검이 필요합니다.' : '점검 서버와 연결이 끊겨 현재 상태를 확인할 수 없습니다.');
     if (result.status === 'pending') issues.unshift('아직 이 페이지를 점검하지 않았습니다.');
@@ -111,7 +123,8 @@
       }
       evidence.append(list);
     } else if (!issues.length) evidence.append(el('p', 'muted', '상세 검사 근거가 아직 없습니다.'));
-    evidence.append(makeLink(result.url, '실제 페이지 열기 ↗', 'detail-link'));
+    if (safeLink(result.url)) evidence.append(makeLink(result.url, '실제 페이지 열기 ↗', 'detail-link'));
+    else if (result.identityWithheld) evidence.append(el('p', 'muted', result.identityWithheldReason || '공개 경로 식별자는 비공개이며 검사 판정은 유지합니다.'));
     const capture = el('div');
     capture.append(el('p', 'detail-label', '점검 당시 화면'));
     if (result.screenshot && safeLink(result.screenshot, true)) {
@@ -123,7 +136,7 @@
       img.addEventListener('error', () => { link.replaceChildren(el('span', 'no-screenshot', '캡처 파일을 불러올 수 없습니다')); }, { once: true });
       link.append(img, el('span', 'screenshot-caption', '화면 크게 보기 ↗'));
       capture.append(link);
-    } else capture.append(el('div', 'no-screenshot', '저장된 화면이 없습니다'));
+    } else capture.append(el('div', 'no-screenshot', result.screenshotOmittedReason || '캡처 저장·게시는 기본으로 생략합니다'));
     detail.append(evidence, capture);
     return detail;
   }
@@ -156,7 +169,7 @@
         const summary = el('summary', 'page-summary');
         const badge = el('span', 'status-label ' + status);
         badge.append(el('span', 'dot dot-' + (status === 'pass' ? 'green' : status === 'fail' ? 'red' : 'gray')), document.createTextNode(status === 'unknown' && result.status === 'pending' ? labels.pending : labels[status]));
-        const identity = el('span'); identity.append(el('span', 'page-name', String(result.name || result.id || '페이지')), el('span', 'page-path', String(result.url || '주소 없음')));
+        const identity = el('span'); identity.append(el('span', 'page-name', String(result.name || result.id || '페이지')), el('span', 'page-path', String(result.url || (result.identityWithheld ? '공개 경로 식별자 비공개' : '주소 없음'))));
         summary.append(badge, identity, el('span', 'group-text', String(result.group || '기타')), el('span', 'time-text', formatDate(result.checkedAt)), el('span', 'chevron', '›'));
         row.append(summary, rowDetail(result));
         fragment.append(row);

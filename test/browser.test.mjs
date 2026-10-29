@@ -89,12 +89,15 @@ describe('real Chromium render checks using only local HTTP fixtures', { skip: !
   const hasIssue = (result, kind) => result.issues.some(issue => issue.kind === kind);
 
   it('passes a rendered page and saves screenshot evidence', async () => {
-    const result = await check('/healthy');
-    assert.equal(result.status, 'pass', JSON.stringify(result.issues));
-    assert.equal(result.httpStatus, 200);
-    assert.equal(result.issues.length, 0);
-    assert.ok(result.screenshot?.endsWith(`${result.id}.png`));
-    assert.ok((await stat(path.join(directory, `${result.id}.png`))).size > 1000);
+    config.captureScreenshots = true;
+    try {
+      const result = await check('/healthy');
+      assert.equal(result.status, 'pass', JSON.stringify(result.issues));
+      assert.equal(result.httpStatus, 200);
+      assert.equal(result.issues.length, 0);
+      assert.ok(result.screenshot?.endsWith(`${result.id}.png`));
+      assert.ok((await stat(path.join(directory, `${result.id}.png`))).size > 1000);
+    } finally { delete config.captureScreenshots; }
   });
 
   it('fails an uncaught JavaScript exception even when the page still has content', async () => {

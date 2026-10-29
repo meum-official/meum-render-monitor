@@ -1,6 +1,7 @@
-import { mkdir } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { PNG } from 'pngjs';
+import { knownMutatingRead } from './read-only-policy.mjs';
 
 export { ruleFor } from './contracts.mjs';
 import { ruleFor, allowedNavigation } from './contracts.mjs';
@@ -33,12 +34,54 @@ export async function launchBrowser() {
   }
 }
 
+export async function installReadOnlyGuard(context, origins) {
+  const blocked = [];
+  const requests = new WeakSet();
+  const hosts = new Set([...origins.map(value => new URL(value).hostname), 'backend.meum.me']);
+  const counts = { blockedServiceWrites: 0, blockedServiceSockets: 0, blockedExternalWrites: 0, blockedExternalSockets: 0, blockedMutatingReads: 0 };
+  await context.route('**/*', async route => {
+    const request = route.request();
+    const read = ['GET', 'HEAD'].includes(request.method());
+    if (read && !knownMutatingRead(request.url())) return route.continue();
+    requests.add(request);
+    if (read) counts.blockedMutatingReads++;
+    if (hosts.has(new URL(request.url()).hostname)) {
+      counts.blockedServiceWrites++;
+      if (blocked.length < 30) blocked.push(read ? '부작용이 확인된 GET/HEAD 경로를 실행하지 않아 해당 기능은 미검증입니다.' : `공개 읽기 점검에서 서비스의 ${request.method()} 요청을 차단했습니다.`);
+    } else counts.blockedExternalWrites++;
+    return route.abort('blockedbyclient');
+  });
+  await context.routeWebSocket('**/*', socket => {
+    if (hosts.has(new URL(socket.url()).hostname)) {
+      counts.blockedServiceSockets++;
+      if (blocked.length < 30) blocked.push('공개 읽기 점검에서 서비스의 WebSocket 연결을 차단했습니다.');
+    } else counts.blockedExternalSockets++;
+    socket.close();
+  });
+  return { blocked, requests, counts };
+}
+
 export async function probe(browser, target, config, screenshotDirectory) {
   const start = Date.now();
   const result = { ...target, status: 'pending', checkedAt: null, durationMs: 0, httpStatus: null, issues: [], checks: [], screenshot: null };
   const issue = (kind, message) => { if (result.issues.length < 30) result.issues.push({ kind, message: safeMessage(message) }); };
   const context = await browser.newContext({ viewport: { width: target.viewport.width, height: target.viewport.height }, deviceScaleFactor: 1, isMobile: !!target.viewport.isMobile, hasTouch: !!target.viewport.isMobile, serviceWorkers: 'block', reducedMotion: 'reduce' });
+  const guard = await installReadOnlyGuard(context, config.origins);
   const page = await context.newPage();
+  let pixelsAvailable = true;
+  const saveCapture = async buffer => {
+    if (config.captureScreenshots !== true) {
+      result.screenshotOmittedReason = '개인정보 보호를 위해 캡처 파일 저장을 기본으로 생략합니다. 픽셀은 메모리에서만 확인합니다.';
+      return;
+    }
+    try {
+      await mkdir(screenshotDirectory, { recursive: true });
+      await writeFile(path.join(screenshotDirectory, `${target.id}.png`), buffer);
+      result.screenshot = `/screenshots/${path.basename(screenshotDirectory)}/${target.id}.png`;
+    } catch {
+      result.screenshotOmittedReason = '캡처 파일을 저장하지 못했습니다. 메모리에서 확인한 페이지 판정은 유지됩니다.';
+    }
+  };
   let fatalEvent;
   const fatal = new Promise(resolve => { fatalEvent = resolve; });
   const rule = { selectors: [], loading: [], errors: [], unknownSelectors: [], ...(target.rule || ruleFor(target.url)) };
@@ -50,7 +93,7 @@ export async function probe(browser, target, config, screenshotDirectory) {
   };
   page.on('pageerror', e => { issue('javascript', e.message); fatalEvent(); });
   page.on('crash', () => { issue('browser-crash', '브라우저 탭이 종료됐습니다.'); fatalEvent(); });
-  page.on('requestfailed', r => { if (critical(r) && !/ERR_ABORTED/.test(r.failure()?.errorText || '')) issue('network', `${r.failure()?.errorText}: ${r.url()}`); });
+  page.on('requestfailed', r => { if (!guard.requests.has(r) && critical(r) && !/ERR_ABORTED/.test(r.failure()?.errorText || '')) issue('network', `${r.failure()?.errorText}: ${r.url()}`); });
   page.on('response', r => { if (r.status() >= 400 && critical(r.request())) issue('http-resource', `HTTP ${r.status()}: ${r.url()}`); });
   try {
     const response = await page.goto(target.url, { waitUntil: 'domcontentloaded', timeout: config.navigationTimeoutMs });
@@ -97,26 +140,35 @@ export async function probe(browser, target, config, screenshotDirectory) {
       img.onload = () => { clearTimeout(timeout); resolve(null); }; img.onerror = () => { clearTimeout(timeout); resolve(url); }; img.src = url;
     })))).filter(Boolean), dom.backgrounds);
     for (const url of brokenBackgrounds) issue('broken-background', url);
-    await mkdir(screenshotDirectory, { recursive: true });
-    const filename = `${target.id}.png`;
-    const buffer = await page.screenshot({ path: path.join(screenshotDirectory, filename), fullPage: false, timeout: 15000 });
-    result.screenshot = `/screenshots/${path.basename(screenshotDirectory)}/${filename}`;
-    const pixels = pixelStats(buffer);
-    if (pixels.dominantRatio > 0.997) issue('blank-screen', `화면의 ${(pixels.dominantRatio * 100).toFixed(1)}%가 같은 색입니다.`);
+    try {
+      const buffer = await page.screenshot({ fullPage: false, timeout: 15000 });
+      const pixels = pixelStats(buffer);
+      if (pixels.dominantRatio > 0.997) issue('blank-screen', `화면의 ${(pixels.dominantRatio * 100).toFixed(1)}%가 같은 색입니다.`);
+      await saveCapture(buffer);
+    } catch {
+      pixelsAvailable = false;
+      result.screenshotOmittedReason = '캡처를 얻지 못해 실제 화면 픽셀은 미확인입니다. DOM·HTTP·실행 오류 결과만 남깁니다.';
+      issue('capture-unavailable', result.screenshotOmittedReason);
+    }
     if (rule.canvas && !dom.accessGate) {
       const canvas = page.locator('canvas#unity-canvas').first();
       if (await canvas.isVisible()) {
-        const stats = pixelStats(await canvas.screenshot({ timeout: 10000 }));
-        if (stats.dominantRatio > 0.995 || stats.colors < 8) issue('blank-canvas', '3D 캔버스에 실제 장면이 표시되지 않습니다.');
+        try {
+          const stats = pixelStats(await canvas.screenshot({ timeout: 10000 }));
+          if (stats.dominantRatio > 0.995 || stats.colors < 8) issue('blank-canvas', '3D 캔버스에 실제 장면이 표시되지 않습니다.');
+        } catch {
+          pixelsAvailable = false;
+          issue('capture-unavailable', '3D 캔버스 픽셀을 얻지 못해 실제 장면은 미확인입니다.');
+        }
       }
     }
     result.checks = [
       { name: 'HTTP 응답', passed: !!response?.ok() },
       { name: '브라우저 실행', passed: !result.issues.some(x => ['javascript', 'browser-crash'].includes(x.kind)) },
       { name: '필수 화면 요소', passed: rule.unsupported || dom.accessGate ? null : !dom.missing.length && !dom.loading.length && !dom.errors.length && dom.globalReady, detail: rule.selectors.length ? `${rule.selectors.length}개 확인` : '페이지별 검사 기준 미등록' },
-      { name: '실제 화면 픽셀', passed: !result.issues.some(x => ['blank-screen', 'blank-canvas', 'empty-dom'].includes(x.kind)) }
+      { name: '실제 화면 픽셀', passed: pixelsAvailable ? !result.issues.some(x => ['blank-screen', 'blank-canvas', 'empty-dom'].includes(x.kind)) : null }
     ];
-    result.status = result.issues.length ? 'fail' : dom.accessGate || rule.unsupported ? 'unknown' : 'pass';
+    result.status = result.issues.some(x => x.kind !== 'capture-unavailable') ? 'fail' : !pixelsAvailable || dom.accessGate || rule.unsupported ? 'unknown' : 'pass';
     if (dom.accessGate) issue('access-required', '입장/비밀번호 안내 화면으로 실제 관람 장면은 미확인입니다.');
     if (rule.unsupported) issue('contract', '이 경로의 필수 화면 검사 기준을 등록해야 합니다.');
     if (config.followViewerEntries && target.group === '전시 프리뷰' && !dom.accessGate && !dom.missing.length && !dom.loading.length && !dom.errors.length) {
@@ -127,7 +179,7 @@ export async function probe(browser, target, config, screenshotDirectory) {
         // Capture the public entry URL, then render it separately with a fresh guest context.
         await context.route('**/*', async route => {
           if (route.request().isNavigationRequest() && isViewer(route.request().url())) { viewerUrl = route.request().url(); await route.abort('aborted'); }
-          else await route.continue();
+          else await route.fallback();
         });
         try {
           await button.click({ timeout: 2500, noWaitAfter: true });
@@ -141,15 +193,17 @@ export async function probe(browser, target, config, screenshotDirectory) {
         } else { issue('entry-discovery', '관람 버튼의 실제 목적지를 확인하지 못했습니다.'); if (result.status === 'pass') result.status = 'unknown'; }
       }
     }
-    if (result.status === 'pass' && result.issues.length) result.status = 'fail';
+    if (result.status === 'pass' && result.issues.some(x => x.kind !== 'capture-unavailable')) result.status = 'fail';
   } catch (e) {
-    issue('navigation', e.message); result.status = 'fail';
-    try {
-      await mkdir(screenshotDirectory, { recursive: true });
-      await page.screenshot({ path: path.join(screenshotDirectory, `${target.id}.png`), timeout: 5000 });
-      result.screenshot = `/screenshots/${path.basename(screenshotDirectory)}/${target.id}.png`;
-    } catch { /* Failed navigation may leave no paintable page. */ }
+    if (guard.blocked.length && !result.issues.length) {
+      issue('read-only-block', '읽기 전용 제한으로 화면 확인을 마치지 못했습니다.'); result.status = 'unknown';
+    } else { issue('navigation', e.message); result.status = 'fail'; }
+    if (config.captureScreenshots === true) try { await saveCapture(await page.screenshot({ timeout: 5000 })); }
+    catch { result.screenshotOmittedReason = '오류 화면의 캡처를 얻지 못했습니다.'; }
   } finally {
+    result.policy = { readOnly: true, ...guard.counts };
+    for (const message of guard.blocked) issue('read-only-block', message);
+    if (guard.blocked.length && result.status === 'pass') result.status = 'unknown';
     result.checkedAt = new Date().toISOString(); result.durationMs = Date.now() - start;
     await context.close().catch(() => {});
   }
