@@ -24,11 +24,14 @@ test('scan resumes the same public sample from a lightweight checkpoint without 
   const directory = await mkdtemp(path.join(tmpdir(), 'meum-sample-scan-'));
   const priorLimit = process.env.SCAN_LIMIT;
   const priorData = process.env.DATA_DIR;
+  const priorLog = console.log;
+  const scanLogs = [];
+  console.log = (...values) => scanLogs.push(values.join(' '));
   process.env.SCAN_LIMIT = '1';
   process.env.DATA_DIR = directory;
   try {
     const { emptyState, runScan } = await import('../server.mjs');
-    const config = { origins: [origin], sitemaps: [], extraPages: [{ url: origin + '/fixture', name: 'Synthetic static page' }], roomListUrl: origin + '/room/list', sampling: { enabled: true, previews: 1, invitations: 1, viewers: 1, publicOrigin: origin }, viewports: [{ name: 'desktop', width: 900, height: 600 }], navigationTimeoutMs: 3000, renderTimeoutMs: 1500, settleMs: 50, betweenPagesMs: 0, maxSitemaps: 2, maxRoomPages: 2, retainedRuns: 2, followViewerEntries: true, captureScreenshots: false };
+    const config = { origins: [origin], sitemaps: [], extraPages: [{ url: origin + '/archive/private-owner-path?private=private-query-sentinel', name: 'private-title-sentinel' }], roomListUrl: origin + '/room/list', sampling: { enabled: true, previews: 1, invitations: 1, viewers: 1, publicOrigin: origin }, viewports: [{ name: 'desktop', width: 900, height: 600 }], navigationTimeoutMs: 3000, renderTimeoutMs: 1500, settleMs: 50, betweenPagesMs: 0, maxSitemaps: 2, maxRoomPages: 2, retainedRuns: 2, followViewerEntries: true, captureScreenshots: false };
     const first = await runScan(config, emptyState(), async () => {});
     assert.equal(first.continuation, true);
     assert.equal(first.results.length, 4);
@@ -43,7 +46,12 @@ test('scan resumes the same public sample from a lightweight checkpoint without 
     assert.equal(second.results.length, 4);
     assert.ok(second.results.every(row => row.url && row.viewport?.name === 'desktop'));
     assert.ok(second.results.every(row => !row.url.includes('outside-sample')));
+    assert.equal(scanLogs.length, 2);
+    for (const line of scanLogs) assert.match(line, /^\[\d+\/4\] (?:pass|fail|unknown) (?:공개 화면|전시 프리뷰|전시 초대장|3D 관람|아카이브|제작자|전시 상세) [a-f0-9]{20}$/);
+    assert.ok(scanLogs.some(line => line.endsWith(first.results.find(row => row.checkedAt).id)));
+    assert.doesNotMatch(scanLogs.join('\n'), /private-owner-path|private-query-sentinel|private-title-sentinel|https?:|\/archive\//);
   } finally {
+    console.log = priorLog;
     if (priorLimit === undefined) delete process.env.SCAN_LIMIT; else process.env.SCAN_LIMIT = priorLimit;
     if (priorData === undefined) delete process.env.DATA_DIR; else process.env.DATA_DIR = priorData;
     server.closeAllConnections(); await new Promise(resolve => server.close(resolve));

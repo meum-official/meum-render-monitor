@@ -3,7 +3,7 @@ import { readFile, writeFile, mkdir, rename, open, unlink, readdir, rm } from 'n
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
-import { discover } from './discovery.mjs';
+import { classify, discover } from './discovery.mjs';
 import { launchBrowser, probe, safeMessage } from './probe.mjs';
 import { fingerprint as publicFingerprint } from './ci.mjs';
 
@@ -103,7 +103,7 @@ export async function runScan(config, state, persist, { stopAt = Infinity, signa
       state.discovery.totalTargets = state.results.length;
       processed++;
       await persist();
-      console.log(`[${index + 1}/${state.results.length}] ${state.results[index].status} ${new URL(state.results[index].url).pathname}`);
+      console.log(`[${index + 1}/${state.results.length}] ${state.results[index].status} ${classify(state.results[index].url)} ${state.results[index].id}`);
       if (config.betweenPagesMs) await delay(config.betweenPagesMs);
     }
     state.status = 'completed';
