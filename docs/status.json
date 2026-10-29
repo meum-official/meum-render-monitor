@@ -1,31 +1,1726 @@
 {
   "schemaVersion": 1,
-  "status": "idle",
-  "runId": null,
-  "inventorySignature": null,
-  "startedAt": null,
-  "attemptStartedAt": null,
-  "completedAt": null,
-  "intervalMinutes": 60,
+  "status": "completed",
+  "runId": "run-1793247980074-16b495",
+  "inventorySignature": "d105bd5e839bb3bc24d73abae8aa57858552cfb957efc086d4812d4273e47743",
+  "startedAt": "2026-10-29T04:26:20.075Z",
+  "attemptStartedAt": "2026-10-29T04:26:20.075Z",
+  "completedAt": "2026-10-29T04:34:10.695Z",
+  "intervalMinutes": 30,
   "continuation": false,
   "readOnly": true,
-  "sampling": null,
+  "sampling": {
+    "schemaVersion": 1,
+    "mode": "representative-sample",
+    "selectedAt": "2026-10-29T04:26:23.551Z",
+    "selectionId": "a76c50ebc61e87f34eae",
+    "seed": "eb9e0c88-69a9-41cd-bb11-edce5687f3a0",
+    "limits": {
+      "previews": 3,
+      "invitations": 3,
+      "viewers": 3,
+      "curatorFallback": 1,
+      "maxRoomPages": 2,
+      "maxCandidateChecks": 12
+    },
+    "previews": [
+      {
+        "roomId": 4252,
+        "hash": "YD9PR4",
+        "url": "https://meum.me/exhibition/preview/4252",
+        "eligible": true,
+        "reason": "public-active-guest-open"
+      },
+      {
+        "roomId": 3609,
+        "hash": "YWmpma",
+        "url": "https://meum.me/exhibition/preview/3609",
+        "eligible": true,
+        "reason": "public-active-guest-open"
+      },
+      {
+        "roomId": 4083,
+        "hash": "awBZ94",
+        "url": "https://meum.me/exhibition/preview/4083",
+        "eligible": true,
+        "reason": "public-active-guest-open"
+      }
+    ],
+    "invitations": [
+      {
+        "roomId": 4252,
+        "hash": "YD9PR4",
+        "url": "https://meum.me/exhibition/invitation/YD9PR4",
+        "eligible": true,
+        "reason": "public-active-guest-open"
+      },
+      {
+        "roomId": 3609,
+        "hash": "YWmpma",
+        "url": "https://meum.me/exhibition/invitation/YWmpma",
+        "eligible": true,
+        "reason": "public-active-guest-open"
+      },
+      {
+        "roomId": 4083,
+        "hash": "awBZ94",
+        "url": "https://meum.me/exhibition/invitation/awBZ94",
+        "eligible": true,
+        "reason": "public-active-guest-open"
+      }
+    ],
+    "viewers": [
+      {
+        "roomId": 4252,
+        "hash": "YD9PR4",
+        "url": "https://meum.me/meum-lite-viewer?r=YD9PR4",
+        "eligible": true,
+        "reason": "public-active-guest-open"
+      },
+      {
+        "roomId": 3609,
+        "hash": "YWmpma",
+        "url": "https://meum.me/meum-lite-viewer?r=YWmpma",
+        "eligible": true,
+        "reason": "public-active-guest-open"
+      },
+      {
+        "roomId": 3691,
+        "hash": null,
+        "family": "archive-viewer",
+        "url": "https://archive.meum.me/archive/viewer/3691",
+        "eligible": true,
+        "reason": "active-public-archive"
+      }
+    ],
+    "unavailable": [
+      {
+        "type": "preview",
+        "family": "oneday-preview",
+        "reason": "no-published-public-id-and-readonly-proof"
+      },
+      {
+        "type": "viewer",
+        "family": "oneday-viewer",
+        "reason": "no-published-public-id-and-readonly-proof"
+      },
+      {
+        "type": "invitation",
+        "family": "sample-invitation",
+        "reason": "no-published-public-id-and-readonly-proof"
+      }
+    ],
+    "scope": "공개 일반 전시의 경로 유형별 대표 표본입니다. 전체 서비스·전시 전수 검사 결과가 아닙니다.",
+    "reason": "공개·진행 중·비인증 입장 조건을 확인한 전시에서 실행별 표본을 선택합니다.",
+    "pool": {
+      "listed": 26,
+      "declared": 26,
+      "pagesRead": 1,
+      "complete": true,
+      "bounded": true,
+      "eligible": 22
+    }
+  },
   "discovery": {
     "complete": false,
     "source": "공개 목록·비인증 입장 조건을 확인한 대표 표본",
-    "totalExhibitions": 0,
-    "totalTargets": 0,
+    "totalExhibitions": 3,
+    "totalTargets": 35,
     "errors": [
       "공개 목록 수집 또는 점검을 완료하지 못했습니다. 실행 로그를 확인하세요.",
-      "대표 표본 선택 메타가 없어 점검 범위를 확인할 수 없습니다."
+      "공개 목록 수집 또는 점검을 완료하지 못했습니다. 실행 로그를 확인하세요.",
+      "공개 목록 수집 또는 점검을 완료하지 못했습니다. 실행 로그를 확인하세요.",
+      "공개 선택 목록에 등록되지 않은 결과를 게시에서 제외했습니다."
     ],
-    "sampling": null
+    "sampling": {
+      "schemaVersion": 1,
+      "mode": "representative-sample",
+      "selectedAt": "2026-10-29T04:26:23.551Z",
+      "selectionId": "a76c50ebc61e87f34eae",
+      "seed": "eb9e0c88-69a9-41cd-bb11-edce5687f3a0",
+      "limits": {
+        "previews": 3,
+        "invitations": 3,
+        "viewers": 3,
+        "curatorFallback": 1,
+        "maxRoomPages": 2,
+        "maxCandidateChecks": 12
+      },
+      "previews": [
+        {
+          "roomId": 4252,
+          "hash": "YD9PR4",
+          "url": "https://meum.me/exhibition/preview/4252",
+          "eligible": true,
+          "reason": "public-active-guest-open"
+        },
+        {
+          "roomId": 3609,
+          "hash": "YWmpma",
+          "url": "https://meum.me/exhibition/preview/3609",
+          "eligible": true,
+          "reason": "public-active-guest-open"
+        },
+        {
+          "roomId": 4083,
+          "hash": "awBZ94",
+          "url": "https://meum.me/exhibition/preview/4083",
+          "eligible": true,
+          "reason": "public-active-guest-open"
+        }
+      ],
+      "invitations": [
+        {
+          "roomId": 4252,
+          "hash": "YD9PR4",
+          "url": "https://meum.me/exhibition/invitation/YD9PR4",
+          "eligible": true,
+          "reason": "public-active-guest-open"
+        },
+        {
+          "roomId": 3609,
+          "hash": "YWmpma",
+          "url": "https://meum.me/exhibition/invitation/YWmpma",
+          "eligible": true,
+          "reason": "public-active-guest-open"
+        },
+        {
+          "roomId": 4083,
+          "hash": "awBZ94",
+          "url": "https://meum.me/exhibition/invitation/awBZ94",
+          "eligible": true,
+          "reason": "public-active-guest-open"
+        }
+      ],
+      "viewers": [
+        {
+          "roomId": 4252,
+          "hash": "YD9PR4",
+          "url": "https://meum.me/meum-lite-viewer?r=YD9PR4",
+          "eligible": true,
+          "reason": "public-active-guest-open"
+        },
+        {
+          "roomId": 3609,
+          "hash": "YWmpma",
+          "url": "https://meum.me/meum-lite-viewer?r=YWmpma",
+          "eligible": true,
+          "reason": "public-active-guest-open"
+        },
+        {
+          "roomId": 3691,
+          "hash": null,
+          "family": "archive-viewer",
+          "url": "https://archive.meum.me/archive/viewer/3691",
+          "eligible": true,
+          "reason": "active-public-archive"
+        }
+      ],
+      "unavailable": [
+        {
+          "type": "preview",
+          "family": "oneday-preview",
+          "reason": "no-published-public-id-and-readonly-proof"
+        },
+        {
+          "type": "viewer",
+          "family": "oneday-viewer",
+          "reason": "no-published-public-id-and-readonly-proof"
+        },
+        {
+          "type": "invitation",
+          "family": "sample-invitation",
+          "reason": "no-published-public-id-and-readonly-proof"
+        }
+      ],
+      "scope": "공개 일반 전시의 경로 유형별 대표 표본입니다. 전체 서비스·전시 전수 검사 결과가 아닙니다.",
+      "reason": "공개·진행 중·비인증 입장 조건을 확인한 전시에서 실행별 표본을 선택합니다.",
+      "pool": {
+        "listed": 26,
+        "declared": 26,
+        "pagesRead": 1,
+        "complete": true,
+        "bounded": true,
+        "eligible": 22
+      }
+    }
   },
-  "results": [],
+  "results": [
+    {
+      "id": "ba274d1f5ccb5321b9b6",
+      "name": "공개 화면 · ba274d1f",
+      "group": "공개 화면",
+      "url": "https://meum.me/home",
+      "status": "pass",
+      "checkedAt": "2026-10-29T04:26:32.556Z",
+      "durationMs": 5063,
+      "httpStatus": 200,
+      "issues": [],
+      "checks": [
+        {
+          "name": "HTTP 응답",
+          "passed": true
+        },
+        {
+          "name": "브라우저 실행",
+          "passed": true
+        },
+        {
+          "name": "필수 화면 요소",
+          "passed": true
+        },
+        {
+          "name": "실제 화면 픽셀",
+          "passed": true
+        }
+      ],
+      "screenshot": null,
+      "screenshotOmittedReason": "공개 보고서에는 캡처와 고객 제목·관측 원문을 기본으로 게시하지 않습니다.",
+      "policy": {
+        "readOnly": true,
+        "blockedServiceWrites": 0,
+        "blockedServiceSockets": 0,
+        "blockedExternalWrites": 3,
+        "blockedExternalSockets": 0,
+        "blockedMutatingReads": 0
+      }
+    },
+    {
+      "id": "93351b3ff27bcb6c6f10",
+      "name": "공개 화면 · 93351b3f",
+      "group": "공개 화면",
+      "url": "https://meum.me/exhibition",
+      "status": "fail",
+      "checkedAt": "2026-10-29T04:26:38.819Z",
+      "durationMs": 5450,
+      "httpStatus": 200,
+      "issues": [
+        {
+          "kind": "http-resource",
+          "message": "필수 공개 리소스가 오류 응답을 반환했습니다."
+        },
+        {
+          "kind": "read-only-block",
+          "message": "공개 읽기 점검에서 쓰기 요청 또는 WebSocket을 차단했습니다."
+        },
+        {
+          "kind": "read-only-block",
+          "message": "공개 읽기 점검에서 쓰기 요청 또는 WebSocket을 차단했습니다."
+        },
+        {
+          "kind": "read-only-block",
+          "message": "공개 읽기 점검에서 쓰기 요청 또는 WebSocket을 차단했습니다."
+        },
+        {
+          "kind": "read-only-block",
+          "message": "공개 읽기 점검에서 쓰기 요청 또는 WebSocket을 차단했습니다."
+        }
+      ],
+      "checks": [
+        {
+          "name": "HTTP 응답",
+          "passed": true
+        },
+        {
+          "name": "브라우저 실행",
+          "passed": true
+        },
+        {
+          "name": "필수 화면 요소",
+          "passed": true
+        },
+        {
+          "name": "실제 화면 픽셀",
+          "passed": true
+        }
+      ],
+      "screenshot": null,
+      "screenshotOmittedReason": "공개 보고서에는 캡처와 고객 제목·관측 원문을 기본으로 게시하지 않습니다.",
+      "policy": {
+        "readOnly": true,
+        "blockedServiceWrites": 4,
+        "blockedServiceSockets": 0,
+        "blockedExternalWrites": 3,
+        "blockedExternalSockets": 0,
+        "blockedMutatingReads": 0
+      }
+    },
+    {
+      "id": "cbd831d272c1add0adef",
+      "name": "공개 화면 · cbd831d2",
+      "group": "공개 화면",
+      "url": "https://meum.me/plan",
+      "status": "pass",
+      "checkedAt": "2026-10-29T04:26:44.122Z",
+      "durationMs": 4491,
+      "httpStatus": 200,
+      "issues": [],
+      "checks": [
+        {
+          "name": "HTTP 응답",
+          "passed": true
+        },
+        {
+          "name": "브라우저 실행",
+          "passed": true
+        },
+        {
+          "name": "필수 화면 요소",
+          "passed": true
+        },
+        {
+          "name": "실제 화면 픽셀",
+          "passed": true
+        }
+      ],
+      "screenshot": null,
+      "screenshotOmittedReason": "공개 보고서에는 캡처와 고객 제목·관측 원문을 기본으로 게시하지 않습니다.",
+      "policy": {
+        "readOnly": true,
+        "blockedServiceWrites": 0,
+        "blockedServiceSockets": 0,
+        "blockedExternalWrites": 7,
+        "blockedExternalSockets": 0,
+        "blockedMutatingReads": 0
+      }
+    },
+    {
+      "id": "308a5fd4aa4af59e7b17",
+      "name": "공개 화면 · 308a5fd4",
+      "group": "공개 화면",
+      "url": "https://meum.me/login",
+      "status": "fail",
+      "checkedAt": "2026-10-29T04:26:49.282Z",
+      "durationMs": 4346,
+      "httpStatus": 200,
+      "issues": [
+        {
+          "kind": "http-resource",
+          "message": "필수 공개 리소스가 오류 응답을 반환했습니다."
+        },
+        {
+          "kind": "http-resource",
+          "message": "필수 공개 리소스가 오류 응답을 반환했습니다."
+        },
+        {
+          "kind": "read-only-block",
+          "message": "공개 읽기 점검에서 쓰기 요청 또는 WebSocket을 차단했습니다."
+        }
+      ],
+      "checks": [
+        {
+          "name": "HTTP 응답",
+          "passed": true
+        },
+        {
+          "name": "브라우저 실행",
+          "passed": true
+        },
+        {
+          "name": "필수 화면 요소",
+          "passed": true
+        },
+        {
+          "name": "실제 화면 픽셀",
+          "passed": true
+        }
+      ],
+      "screenshot": null,
+      "screenshotOmittedReason": "공개 보고서에는 캡처와 고객 제목·관측 원문을 기본으로 게시하지 않습니다.",
+      "policy": {
+        "readOnly": true,
+        "blockedServiceWrites": 1,
+        "blockedServiceSockets": 0,
+        "blockedExternalWrites": 3,
+        "blockedExternalSockets": 0,
+        "blockedMutatingReads": 0
+      }
+    },
+    {
+      "id": "9d30ee77198f846c4aed",
+      "name": "공개 화면 · 9d30ee77",
+      "group": "공개 화면",
+      "url": "https://meum.me/register",
+      "status": "fail",
+      "checkedAt": "2026-10-29T04:26:54.861Z",
+      "durationMs": 4756,
+      "httpStatus": 200,
+      "issues": [
+        {
+          "kind": "http-resource",
+          "message": "필수 공개 리소스가 오류 응답을 반환했습니다."
+        }
+      ],
+      "checks": [
+        {
+          "name": "HTTP 응답",
+          "passed": true
+        },
+        {
+          "name": "브라우저 실행",
+          "passed": true
+        },
+        {
+          "name": "필수 화면 요소",
+          "passed": true
+        },
+        {
+          "name": "실제 화면 픽셀",
+          "passed": true
+        }
+      ],
+      "screenshot": null,
+      "screenshotOmittedReason": "공개 보고서에는 캡처와 고객 제목·관측 원문을 기본으로 게시하지 않습니다.",
+      "policy": {
+        "readOnly": true,
+        "blockedServiceWrites": 0,
+        "blockedServiceSockets": 0,
+        "blockedExternalWrites": 5,
+        "blockedExternalSockets": 0,
+        "blockedMutatingReads": 0
+      }
+    },
+    {
+      "id": "e11213e1f3917f31ea29",
+      "name": "공개 화면 · e11213e1",
+      "group": "공개 화면",
+      "url": "https://meum.me/cases",
+      "status": "pass",
+      "checkedAt": "2026-10-29T04:26:59.960Z",
+      "durationMs": 4270,
+      "httpStatus": 200,
+      "issues": [],
+      "checks": [
+        {
+          "name": "HTTP 응답",
+          "passed": true
+        },
+        {
+          "name": "브라우저 실행",
+          "passed": true
+        },
+        {
+          "name": "필수 화면 요소",
+          "passed": true
+        },
+        {
+          "name": "실제 화면 픽셀",
+          "passed": true
+        }
+      ],
+      "screenshot": null,
+      "screenshotOmittedReason": "공개 보고서에는 캡처와 고객 제목·관측 원문을 기본으로 게시하지 않습니다.",
+      "policy": {
+        "readOnly": true,
+        "blockedServiceWrites": 0,
+        "blockedServiceSockets": 0,
+        "blockedExternalWrites": 3,
+        "blockedExternalSockets": 0,
+        "blockedMutatingReads": 0
+      }
+    },
+    {
+      "id": "086f90e6f4d1c685c746",
+      "name": "공개 화면 · 086f90e6",
+      "group": "공개 화면",
+      "url": "https://meum.me/customer-center/certificated",
+      "status": "pass",
+      "checkedAt": "2026-10-29T04:27:05.075Z",
+      "durationMs": 4304,
+      "httpStatus": 200,
+      "issues": [],
+      "checks": [
+        {
+          "name": "HTTP 응답",
+          "passed": true
+        },
+        {
+          "name": "브라우저 실행",
+          "passed": true
+        },
+        {
+          "name": "필수 화면 요소",
+          "passed": true
+        },
+        {
+          "name": "실제 화면 픽셀",
+          "passed": true
+        }
+      ],
+      "screenshot": null,
+      "screenshotOmittedReason": "공개 보고서에는 캡처와 고객 제목·관측 원문을 기본으로 게시하지 않습니다.",
+      "policy": {
+        "readOnly": true,
+        "blockedServiceWrites": 0,
+        "blockedServiceSockets": 0,
+        "blockedExternalWrites": 3,
+        "blockedExternalSockets": 0,
+        "blockedMutatingReads": 0
+      }
+    },
+    {
+      "id": "91c3ebd7842aa6f7eebb",
+      "name": "공개 화면 · 91c3ebd7",
+      "group": "공개 화면",
+      "url": "https://meum.me/customer-center/contact",
+      "status": "fail",
+      "checkedAt": "2026-10-29T04:27:10.430Z",
+      "durationMs": 4531,
+      "httpStatus": 200,
+      "issues": [
+        {
+          "kind": "http-resource",
+          "message": "필수 공개 리소스가 오류 응답을 반환했습니다."
+        }
+      ],
+      "checks": [
+        {
+          "name": "HTTP 응답",
+          "passed": true
+        },
+        {
+          "name": "브라우저 실행",
+          "passed": true
+        },
+        {
+          "name": "필수 화면 요소",
+          "passed": true
+        },
+        {
+          "name": "실제 화면 픽셀",
+          "passed": true
+        }
+      ],
+      "screenshot": null,
+      "screenshotOmittedReason": "공개 보고서에는 캡처와 고객 제목·관측 원문을 기본으로 게시하지 않습니다.",
+      "policy": {
+        "readOnly": true,
+        "blockedServiceWrites": 0,
+        "blockedServiceSockets": 0,
+        "blockedExternalWrites": 3,
+        "blockedExternalSockets": 0,
+        "blockedMutatingReads": 0
+      }
+    },
+    {
+      "id": "269c652c25c01da0e443",
+      "name": "공개 화면 · 269c652c",
+      "group": "공개 화면",
+      "url": "https://meum.me/customer-center/event",
+      "status": "unknown",
+      "checkedAt": "2026-10-29T04:27:15.746Z",
+      "durationMs": 4486,
+      "httpStatus": 200,
+      "issues": [
+        {
+          "kind": "read-only-block",
+          "message": "공개 읽기 점검에서 쓰기 요청 또는 WebSocket을 차단했습니다."
+        }
+      ],
+      "checks": [
+        {
+          "name": "HTTP 응답",
+          "passed": true
+        },
+        {
+          "name": "브라우저 실행",
+          "passed": true
+        },
+        {
+          "name": "필수 화면 요소",
+          "passed": true
+        },
+        {
+          "name": "실제 화면 픽셀",
+          "passed": true
+        }
+      ],
+      "screenshot": null,
+      "screenshotOmittedReason": "공개 보고서에는 캡처와 고객 제목·관측 원문을 기본으로 게시하지 않습니다.",
+      "policy": {
+        "readOnly": true,
+        "blockedServiceWrites": 1,
+        "blockedServiceSockets": 0,
+        "blockedExternalWrites": 3,
+        "blockedExternalSockets": 0,
+        "blockedMutatingReads": 0
+      }
+    },
+    {
+      "id": "b1c61c903d656f2cd174",
+      "name": "공개 화면 · b1c61c90",
+      "group": "공개 화면",
+      "url": "https://meum.me/customer-center/notice",
+      "status": "pass",
+      "checkedAt": "2026-10-29T04:27:21.022Z",
+      "durationMs": 4448,
+      "httpStatus": 200,
+      "issues": [],
+      "checks": [
+        {
+          "name": "HTTP 응답",
+          "passed": true
+        },
+        {
+          "name": "브라우저 실행",
+          "passed": true
+        },
+        {
+          "name": "필수 화면 요소",
+          "passed": true
+        },
+        {
+          "name": "실제 화면 픽셀",
+          "passed": true
+        }
+      ],
+      "screenshot": null,
+      "screenshotOmittedReason": "공개 보고서에는 캡처와 고객 제목·관측 원문을 기본으로 게시하지 않습니다.",
+      "policy": {
+        "readOnly": true,
+        "blockedServiceWrites": 0,
+        "blockedServiceSockets": 0,
+        "blockedExternalWrites": 5,
+        "blockedExternalSockets": 0,
+        "blockedMutatingReads": 0
+      }
+    },
+    {
+      "id": "a47e8d12fedbedd96d1d",
+      "name": "공개 화면 · a47e8d12",
+      "group": "공개 화면",
+      "url": "https://meum.me/customer-center/qna",
+      "status": "pass",
+      "checkedAt": "2026-10-29T04:27:26.344Z",
+      "durationMs": 4493,
+      "httpStatus": 200,
+      "issues": [],
+      "checks": [
+        {
+          "name": "HTTP 응답",
+          "passed": true
+        },
+        {
+          "name": "브라우저 실행",
+          "passed": true
+        },
+        {
+          "name": "필수 화면 요소",
+          "passed": true
+        },
+        {
+          "name": "실제 화면 픽셀",
+          "passed": true
+        }
+      ],
+      "screenshot": null,
+      "screenshotOmittedReason": "공개 보고서에는 캡처와 고객 제목·관측 원문을 기본으로 게시하지 않습니다.",
+      "policy": {
+        "readOnly": true,
+        "blockedServiceWrites": 0,
+        "blockedServiceSockets": 0,
+        "blockedExternalWrites": 5,
+        "blockedExternalSockets": 0,
+        "blockedMutatingReads": 0
+      }
+    },
+    {
+      "id": "f73295832801afe8edb8",
+      "name": "공개 화면 · f7329583",
+      "group": "공개 화면",
+      "url": "https://meum.me/galleries",
+      "status": "pass",
+      "checkedAt": "2026-10-29T04:27:31.819Z",
+      "durationMs": 4662,
+      "httpStatus": 200,
+      "issues": [],
+      "checks": [
+        {
+          "name": "HTTP 응답",
+          "passed": true
+        },
+        {
+          "name": "브라우저 실행",
+          "passed": true
+        },
+        {
+          "name": "필수 화면 요소",
+          "passed": true
+        },
+        {
+          "name": "실제 화면 픽셀",
+          "passed": true
+        }
+      ],
+      "screenshot": null,
+      "screenshotOmittedReason": "공개 보고서에는 캡처와 고객 제목·관측 원문을 기본으로 게시하지 않습니다.",
+      "policy": {
+        "readOnly": true,
+        "blockedServiceWrites": 0,
+        "blockedServiceSockets": 0,
+        "blockedExternalWrites": 3,
+        "blockedExternalSockets": 0,
+        "blockedMutatingReads": 0
+      }
+    },
+    {
+      "id": "68c6f00b6047678943b0",
+      "name": "공개 화면 · 68c6f00b",
+      "group": "공개 화면",
+      "url": "https://meum.me/meum-service",
+      "status": "pass",
+      "checkedAt": "2026-10-29T04:27:37.580Z",
+      "durationMs": 4928,
+      "httpStatus": 200,
+      "issues": [],
+      "checks": [
+        {
+          "name": "HTTP 응답",
+          "passed": true
+        },
+        {
+          "name": "브라우저 실행",
+          "passed": true
+        },
+        {
+          "name": "필수 화면 요소",
+          "passed": true
+        },
+        {
+          "name": "실제 화면 픽셀",
+          "passed": true
+        }
+      ],
+      "screenshot": null,
+      "screenshotOmittedReason": "공개 보고서에는 캡처와 고객 제목·관측 원문을 기본으로 게시하지 않습니다.",
+      "policy": {
+        "readOnly": true,
+        "blockedServiceWrites": 0,
+        "blockedServiceSockets": 0,
+        "blockedExternalWrites": 3,
+        "blockedExternalSockets": 0,
+        "blockedMutatingReads": 0
+      }
+    },
+    {
+      "id": "f9bca8165198ce88de00",
+      "name": "공개 화면 · f9bca816",
+      "group": "공개 화면",
+      "url": "https://meum.me/sample-exhibition",
+      "status": "fail",
+      "checkedAt": "2026-10-29T04:27:43.009Z",
+      "durationMs": 4617,
+      "httpStatus": 200,
+      "issues": [
+        {
+          "kind": "http-resource",
+          "message": "필수 공개 리소스가 오류 응답을 반환했습니다."
+        }
+      ],
+      "checks": [
+        {
+          "name": "HTTP 응답",
+          "passed": true
+        },
+        {
+          "name": "브라우저 실행",
+          "passed": true
+        },
+        {
+          "name": "필수 화면 요소",
+          "passed": true
+        },
+        {
+          "name": "실제 화면 픽셀",
+          "passed": true
+        }
+      ],
+      "screenshot": null,
+      "screenshotOmittedReason": "공개 보고서에는 캡처와 고객 제목·관측 원문을 기본으로 게시하지 않습니다.",
+      "policy": {
+        "readOnly": true,
+        "blockedServiceWrites": 0,
+        "blockedServiceSockets": 0,
+        "blockedExternalWrites": 3,
+        "blockedExternalSockets": 0,
+        "blockedMutatingReads": 0
+      }
+    },
+    {
+      "id": "18b1a411902d0eaf1c8c",
+      "name": "공개 화면 · 18b1a411",
+      "group": "공개 화면",
+      "url": "https://meum.me/school/teacher-guide",
+      "status": "pass",
+      "checkedAt": "2026-10-29T04:27:48.314Z",
+      "durationMs": 4491,
+      "httpStatus": 200,
+      "issues": [],
+      "checks": [
+        {
+          "name": "HTTP 응답",
+          "passed": true
+        },
+        {
+          "name": "브라우저 실행",
+          "passed": true
+        },
+        {
+          "name": "필수 화면 요소",
+          "passed": true
+        },
+        {
+          "name": "실제 화면 픽셀",
+          "passed": true
+        }
+      ],
+      "screenshot": null,
+      "screenshotOmittedReason": "공개 보고서에는 캡처와 고객 제목·관측 원문을 기본으로 게시하지 않습니다.",
+      "policy": {
+        "readOnly": true,
+        "blockedServiceWrites": 0,
+        "blockedServiceSockets": 0,
+        "blockedExternalWrites": 8,
+        "blockedExternalSockets": 0,
+        "blockedMutatingReads": 0
+      }
+    },
+    {
+      "id": "1ac0ffc708d00a0af511",
+      "name": "공개 화면 · 1ac0ffc7",
+      "group": "공개 화면",
+      "url": "https://meum.me/school/teachers",
+      "status": "pass",
+      "checkedAt": "2026-10-29T04:27:53.563Z",
+      "durationMs": 4434,
+      "httpStatus": 200,
+      "issues": [],
+      "checks": [
+        {
+          "name": "HTTP 응답",
+          "passed": true
+        },
+        {
+          "name": "브라우저 실행",
+          "passed": true
+        },
+        {
+          "name": "필수 화면 요소",
+          "passed": true
+        },
+        {
+          "name": "실제 화면 픽셀",
+          "passed": true
+        }
+      ],
+      "screenshot": null,
+      "screenshotOmittedReason": "공개 보고서에는 캡처와 고객 제목·관측 원문을 기본으로 게시하지 않습니다.",
+      "policy": {
+        "readOnly": true,
+        "blockedServiceWrites": 0,
+        "blockedServiceSockets": 0,
+        "blockedExternalWrites": 3,
+        "blockedExternalSockets": 0,
+        "blockedMutatingReads": 0
+      }
+    },
+    {
+      "id": "5fd15504909a7ace62a0",
+      "name": "공개 화면 · 5fd15504",
+      "group": "공개 화면",
+      "url": "https://meum.me/tools/exhibition-poster",
+      "status": "pass",
+      "checkedAt": "2026-10-29T04:27:59.937Z",
+      "durationMs": 5561,
+      "httpStatus": 200,
+      "issues": [],
+      "checks": [
+        {
+          "name": "HTTP 응답",
+          "passed": true
+        },
+        {
+          "name": "브라우저 실행",
+          "passed": true
+        },
+        {
+          "name": "필수 화면 요소",
+          "passed": true
+        },
+        {
+          "name": "실제 화면 픽셀",
+          "passed": true
+        }
+      ],
+      "screenshot": null,
+      "screenshotOmittedReason": "공개 보고서에는 캡처와 고객 제목·관측 원문을 기본으로 게시하지 않습니다.",
+      "policy": {
+        "readOnly": true,
+        "blockedServiceWrites": 0,
+        "blockedServiceSockets": 0,
+        "blockedExternalWrites": 3,
+        "blockedExternalSockets": 0,
+        "blockedMutatingReads": 0
+      }
+    },
+    {
+      "id": "b1cd66622956171c8db3",
+      "name": "공개 화면 · b1cd6662",
+      "group": "공개 화면",
+      "url": "https://meum.me/ai-art-exhibition",
+      "status": "pass",
+      "checkedAt": "2026-10-29T04:28:04.958Z",
+      "durationMs": 4189,
+      "httpStatus": 200,
+      "issues": [],
+      "checks": [
+        {
+          "name": "HTTP 응답",
+          "passed": true
+        },
+        {
+          "name": "브라우저 실행",
+          "passed": true
+        },
+        {
+          "name": "필수 화면 요소",
+          "passed": true
+        },
+        {
+          "name": "실제 화면 픽셀",
+          "passed": true
+        }
+      ],
+      "screenshot": null,
+      "screenshotOmittedReason": "공개 보고서에는 캡처와 고객 제목·관측 원문을 기본으로 게시하지 않습니다.",
+      "policy": {
+        "readOnly": true,
+        "blockedServiceWrites": 0,
+        "blockedServiceSockets": 0,
+        "blockedExternalWrites": 3,
+        "blockedExternalSockets": 0,
+        "blockedMutatingReads": 0
+      }
+    },
+    {
+      "id": "149e5ad25ead2751a04d",
+      "name": "공개 화면 · 149e5ad2",
+      "group": "공개 화면",
+      "url": "https://meum.me/webtoon",
+      "status": "fail",
+      "checkedAt": "2026-10-29T04:28:10.189Z",
+      "durationMs": 4415,
+      "httpStatus": 200,
+      "issues": [
+        {
+          "kind": "http-resource",
+          "message": "필수 공개 리소스가 오류 응답을 반환했습니다."
+        }
+      ],
+      "checks": [
+        {
+          "name": "HTTP 응답",
+          "passed": true
+        },
+        {
+          "name": "브라우저 실행",
+          "passed": true
+        },
+        {
+          "name": "필수 화면 요소",
+          "passed": true
+        },
+        {
+          "name": "실제 화면 픽셀",
+          "passed": true
+        }
+      ],
+      "screenshot": null,
+      "screenshotOmittedReason": "공개 보고서에는 캡처와 고객 제목·관측 원문을 기본으로 게시하지 않습니다.",
+      "policy": {
+        "readOnly": true,
+        "blockedServiceWrites": 0,
+        "blockedServiceSockets": 0,
+        "blockedExternalWrites": 3,
+        "blockedExternalSockets": 0,
+        "blockedMutatingReads": 0
+      }
+    },
+    {
+      "id": "afc1d0ea278b94dc11f4",
+      "name": "웹툰 · afc1d0ea",
+      "group": "웹툰",
+      "url": null,
+      "publicRouteFamily": "webtoon",
+      "identityWithheld": true,
+      "identityWithheldReason": "공개 대표 경로의 식별자는 비공개로 보관하며 검사 판정은 유지합니다.",
+      "status": "fail",
+      "checkedAt": "2026-10-29T04:28:15.321Z",
+      "durationMs": 4317,
+      "httpStatus": 200,
+      "issues": [
+        {
+          "kind": "http-resource",
+          "message": "필수 공개 리소스가 오류 응답을 반환했습니다."
+        }
+      ],
+      "checks": [
+        {
+          "name": "HTTP 응답",
+          "passed": true
+        },
+        {
+          "name": "브라우저 실행",
+          "passed": true
+        },
+        {
+          "name": "필수 화면 요소",
+          "passed": true
+        },
+        {
+          "name": "실제 화면 픽셀",
+          "passed": true
+        }
+      ],
+      "screenshot": null,
+      "screenshotOmittedReason": "공개 보고서에는 캡처와 고객 제목·관측 원문을 기본으로 게시하지 않습니다.",
+      "policy": {
+        "readOnly": true,
+        "blockedServiceWrites": 0,
+        "blockedServiceSockets": 0,
+        "blockedExternalWrites": 3,
+        "blockedExternalSockets": 0,
+        "blockedMutatingReads": 0
+      }
+    },
+    {
+      "id": "6290ce7b97265646f49e",
+      "name": "공개 화면 · 6290ce7b",
+      "group": "공개 화면",
+      "url": "https://meum.me/en",
+      "status": "pass",
+      "checkedAt": "2026-10-29T04:28:20.621Z",
+      "durationMs": 4475,
+      "httpStatus": 200,
+      "issues": [],
+      "checks": [
+        {
+          "name": "HTTP 응답",
+          "passed": true
+        },
+        {
+          "name": "브라우저 실행",
+          "passed": true
+        },
+        {
+          "name": "필수 화면 요소",
+          "passed": true
+        },
+        {
+          "name": "실제 화면 픽셀",
+          "passed": true
+        }
+      ],
+      "screenshot": null,
+      "screenshotOmittedReason": "공개 보고서에는 캡처와 고객 제목·관측 원문을 기본으로 게시하지 않습니다.",
+      "policy": {
+        "readOnly": true,
+        "blockedServiceWrites": 0,
+        "blockedServiceSockets": 0,
+        "blockedExternalWrites": 3,
+        "blockedExternalSockets": 0,
+        "blockedMutatingReads": 0
+      }
+    },
+    {
+      "id": "07db963c85d2a3da4d56",
+      "name": "공개 화면 · 07db963c",
+      "group": "공개 화면",
+      "url": "https://meum.me/en/guides",
+      "status": "pass",
+      "checkedAt": "2026-10-29T04:28:25.787Z",
+      "durationMs": 4350,
+      "httpStatus": 200,
+      "issues": [],
+      "checks": [
+        {
+          "name": "HTTP 응답",
+          "passed": true
+        },
+        {
+          "name": "브라우저 실행",
+          "passed": true
+        },
+        {
+          "name": "필수 화면 요소",
+          "passed": true
+        },
+        {
+          "name": "실제 화면 픽셀",
+          "passed": true
+        }
+      ],
+      "screenshot": null,
+      "screenshotOmittedReason": "공개 보고서에는 캡처와 고객 제목·관측 원문을 기본으로 게시하지 않습니다.",
+      "policy": {
+        "readOnly": true,
+        "blockedServiceWrites": 0,
+        "blockedServiceSockets": 0,
+        "blockedExternalWrites": 3,
+        "blockedExternalSockets": 0,
+        "blockedMutatingReads": 0
+      }
+    },
+    {
+      "id": "38d378307194cb529dae",
+      "name": "전시 프리뷰 · 38d37830",
+      "group": "전시 프리뷰",
+      "url": "https://meum.me/exhibition/preview/4252",
+      "status": "fail",
+      "checkedAt": "2026-10-29T04:28:33.548Z",
+      "durationMs": 6936,
+      "httpStatus": 200,
+      "issues": [
+        {
+          "kind": "http-resource",
+          "message": "필수 공개 리소스가 오류 응답을 반환했습니다."
+        },
+        {
+          "kind": "read-only-block",
+          "message": "공개 읽기 점검에서 쓰기 요청 또는 WebSocket을 차단했습니다."
+        },
+        {
+          "kind": "read-only-block",
+          "message": "공개 읽기 점검에서 쓰기 요청 또는 WebSocket을 차단했습니다."
+        }
+      ],
+      "checks": [
+        {
+          "name": "HTTP 응답",
+          "passed": true
+        },
+        {
+          "name": "브라우저 실행",
+          "passed": true
+        },
+        {
+          "name": "필수 화면 요소",
+          "passed": true
+        },
+        {
+          "name": "실제 화면 픽셀",
+          "passed": true
+        }
+      ],
+      "screenshot": null,
+      "screenshotOmittedReason": "공개 보고서에는 캡처와 고객 제목·관측 원문을 기본으로 게시하지 않습니다.",
+      "policy": {
+        "readOnly": true,
+        "blockedServiceWrites": 2,
+        "blockedServiceSockets": 0,
+        "blockedExternalWrites": 7,
+        "blockedExternalSockets": 0,
+        "blockedMutatingReads": 0
+      }
+    },
+    {
+      "id": "f53554c1667d1bd8f79b",
+      "name": "전시 프리뷰 · f53554c1",
+      "group": "전시 프리뷰",
+      "url": "https://meum.me/exhibition/preview/3609",
+      "status": "fail",
+      "checkedAt": "2026-10-29T04:28:41.478Z",
+      "durationMs": 7121,
+      "httpStatus": 200,
+      "issues": [
+        {
+          "kind": "http-resource",
+          "message": "필수 공개 리소스가 오류 응답을 반환했습니다."
+        },
+        {
+          "kind": "read-only-block",
+          "message": "공개 읽기 점검에서 쓰기 요청 또는 WebSocket을 차단했습니다."
+        }
+      ],
+      "checks": [
+        {
+          "name": "HTTP 응답",
+          "passed": true
+        },
+        {
+          "name": "브라우저 실행",
+          "passed": true
+        },
+        {
+          "name": "필수 화면 요소",
+          "passed": true
+        },
+        {
+          "name": "실제 화면 픽셀",
+          "passed": true
+        }
+      ],
+      "screenshot": null,
+      "screenshotOmittedReason": "공개 보고서에는 캡처와 고객 제목·관측 원문을 기본으로 게시하지 않습니다.",
+      "policy": {
+        "readOnly": true,
+        "blockedServiceWrites": 1,
+        "blockedServiceSockets": 0,
+        "blockedExternalWrites": 7,
+        "blockedExternalSockets": 0,
+        "blockedMutatingReads": 0
+      }
+    },
+    {
+      "id": "891eda5f4d66f286dab6",
+      "name": "전시 프리뷰 · 891eda5f",
+      "group": "전시 프리뷰",
+      "url": "https://meum.me/exhibition/preview/4083",
+      "status": "fail",
+      "checkedAt": "2026-10-29T04:28:49.155Z",
+      "durationMs": 6870,
+      "httpStatus": 200,
+      "issues": [
+        {
+          "kind": "http-resource",
+          "message": "필수 공개 리소스가 오류 응답을 반환했습니다."
+        },
+        {
+          "kind": "read-only-block",
+          "message": "공개 읽기 점검에서 쓰기 요청 또는 WebSocket을 차단했습니다."
+        }
+      ],
+      "checks": [
+        {
+          "name": "HTTP 응답",
+          "passed": true
+        },
+        {
+          "name": "브라우저 실행",
+          "passed": true
+        },
+        {
+          "name": "필수 화면 요소",
+          "passed": true
+        },
+        {
+          "name": "실제 화면 픽셀",
+          "passed": true
+        }
+      ],
+      "screenshot": null,
+      "screenshotOmittedReason": "공개 보고서에는 캡처와 고객 제목·관측 원문을 기본으로 게시하지 않습니다.",
+      "policy": {
+        "readOnly": true,
+        "blockedServiceWrites": 1,
+        "blockedServiceSockets": 0,
+        "blockedExternalWrites": 7,
+        "blockedExternalSockets": 0,
+        "blockedMutatingReads": 0
+      }
+    },
+    {
+      "id": "bc9da33b8cd23b47e936",
+      "name": "아카이브 · bc9da33b",
+      "group": "아카이브",
+      "url": "https://archive.meum.me/",
+      "status": "pass",
+      "checkedAt": "2026-10-29T04:28:54.206Z",
+      "durationMs": 4242,
+      "httpStatus": 200,
+      "issues": [],
+      "checks": [
+        {
+          "name": "HTTP 응답",
+          "passed": true
+        },
+        {
+          "name": "브라우저 실행",
+          "passed": true
+        },
+        {
+          "name": "필수 화면 요소",
+          "passed": true
+        },
+        {
+          "name": "실제 화면 픽셀",
+          "passed": true
+        }
+      ],
+      "screenshot": null,
+      "screenshotOmittedReason": "공개 보고서에는 캡처와 고객 제목·관측 원문을 기본으로 게시하지 않습니다.",
+      "policy": {
+        "readOnly": true,
+        "blockedServiceWrites": 0,
+        "blockedServiceSockets": 0,
+        "blockedExternalWrites": 0,
+        "blockedExternalSockets": 0,
+        "blockedMutatingReads": 0
+      }
+    },
+    {
+      "id": "744cf999008884094f9f",
+      "name": "제작자 · 744cf999",
+      "group": "제작자",
+      "url": null,
+      "publicRouteFamily": "creator",
+      "identityWithheld": true,
+      "identityWithheldReason": "공개 대표 경로의 식별자는 비공개로 보관하며 검사 판정은 유지합니다.",
+      "status": "pass",
+      "checkedAt": "2026-10-29T04:29:04.215Z",
+      "durationMs": 9185,
+      "httpStatus": 200,
+      "issues": [],
+      "checks": [
+        {
+          "name": "HTTP 응답",
+          "passed": true
+        },
+        {
+          "name": "브라우저 실행",
+          "passed": true
+        },
+        {
+          "name": "필수 화면 요소",
+          "passed": true
+        },
+        {
+          "name": "실제 화면 픽셀",
+          "passed": true
+        }
+      ],
+      "screenshot": null,
+      "screenshotOmittedReason": "공개 보고서에는 캡처와 고객 제목·관측 원문을 기본으로 게시하지 않습니다.",
+      "policy": {
+        "readOnly": true,
+        "blockedServiceWrites": 0,
+        "blockedServiceSockets": 0,
+        "blockedExternalWrites": 7,
+        "blockedExternalSockets": 0,
+        "blockedMutatingReads": 0
+      }
+    },
+    {
+      "id": "4ca6e9df4a5bb86f6b4f",
+      "name": "전시 초대장 · 4ca6e9df",
+      "group": "전시 초대장",
+      "url": "https://meum.me/exhibition/invitation/YD9PR4",
+      "status": "fail",
+      "checkedAt": "2026-10-29T04:29:20.649Z",
+      "durationMs": 6061,
+      "httpStatus": 200,
+      "issues": [
+        {
+          "kind": "http-resource",
+          "message": "필수 공개 리소스가 오류 응답을 반환했습니다."
+        }
+      ],
+      "checks": [
+        {
+          "name": "HTTP 응답",
+          "passed": true
+        },
+        {
+          "name": "브라우저 실행",
+          "passed": true
+        },
+        {
+          "name": "필수 화면 요소",
+          "passed": true
+        },
+        {
+          "name": "실제 화면 픽셀",
+          "passed": true
+        }
+      ],
+      "screenshot": null,
+      "screenshotOmittedReason": "공개 보고서에는 캡처와 고객 제목·관측 원문을 기본으로 게시하지 않습니다.",
+      "policy": {
+        "readOnly": true,
+        "blockedServiceWrites": 0,
+        "blockedServiceSockets": 0,
+        "blockedExternalWrites": 7,
+        "blockedExternalSockets": 0,
+        "blockedMutatingReads": 0
+      }
+    },
+    {
+      "id": "3b9a41365bbc1cc8781b",
+      "name": "전시 초대장 · 3b9a4136",
+      "group": "전시 초대장",
+      "url": "https://meum.me/exhibition/invitation/YWmpma",
+      "status": "fail",
+      "checkedAt": "2026-10-29T04:29:27.367Z",
+      "durationMs": 5891,
+      "httpStatus": 200,
+      "issues": [
+        {
+          "kind": "http-resource",
+          "message": "필수 공개 리소스가 오류 응답을 반환했습니다."
+        }
+      ],
+      "checks": [
+        {
+          "name": "HTTP 응답",
+          "passed": true
+        },
+        {
+          "name": "브라우저 실행",
+          "passed": true
+        },
+        {
+          "name": "필수 화면 요소",
+          "passed": true
+        },
+        {
+          "name": "실제 화면 픽셀",
+          "passed": true
+        }
+      ],
+      "screenshot": null,
+      "screenshotOmittedReason": "공개 보고서에는 캡처와 고객 제목·관측 원문을 기본으로 게시하지 않습니다.",
+      "policy": {
+        "readOnly": true,
+        "blockedServiceWrites": 0,
+        "blockedServiceSockets": 0,
+        "blockedExternalWrites": 7,
+        "blockedExternalSockets": 0,
+        "blockedMutatingReads": 0
+      }
+    },
+    {
+      "id": "0688a29e2d6003615bda",
+      "name": "전시 초대장 · 0688a29e",
+      "group": "전시 초대장",
+      "url": "https://meum.me/exhibition/invitation/awBZ94",
+      "status": "fail",
+      "checkedAt": "2026-10-29T04:29:34.332Z",
+      "durationMs": 6153,
+      "httpStatus": 200,
+      "issues": [
+        {
+          "kind": "http-resource",
+          "message": "필수 공개 리소스가 오류 응답을 반환했습니다."
+        }
+      ],
+      "checks": [
+        {
+          "name": "HTTP 응답",
+          "passed": true
+        },
+        {
+          "name": "브라우저 실행",
+          "passed": true
+        },
+        {
+          "name": "필수 화면 요소",
+          "passed": true
+        },
+        {
+          "name": "실제 화면 픽셀",
+          "passed": true
+        }
+      ],
+      "screenshot": null,
+      "screenshotOmittedReason": "공개 보고서에는 캡처와 고객 제목·관측 원문을 기본으로 게시하지 않습니다.",
+      "policy": {
+        "readOnly": true,
+        "blockedServiceWrites": 0,
+        "blockedServiceSockets": 0,
+        "blockedExternalWrites": 7,
+        "blockedExternalSockets": 0,
+        "blockedMutatingReads": 0
+      }
+    },
+    {
+      "id": "bff81a9226ae8d4ca6a4",
+      "name": "3D 관람 · bff81a92",
+      "group": "3D 관람",
+      "url": "https://meum.me/meum-lite-viewer?r=YD9PR4",
+      "status": "fail",
+      "checkedAt": "2026-10-29T04:31:10.171Z",
+      "durationMs": 95034,
+      "httpStatus": 200,
+      "issues": [
+        {
+          "kind": "http-resource",
+          "message": "필수 공개 리소스가 오류 응답을 반환했습니다."
+        },
+        {
+          "kind": "render-timeout",
+          "message": "화면 준비 조건을 제한 시간 안에 확인하지 못했습니다."
+        },
+        {
+          "kind": "3d-not-ready",
+          "message": "3D 엔진의 준비 완료를 확인하지 못했습니다."
+        },
+        {
+          "kind": "loading",
+          "message": "로딩이 끝나지 않았습니다."
+        },
+        {
+          "kind": "read-only-block",
+          "message": "공개 읽기 점검에서 쓰기 요청 또는 WebSocket을 차단했습니다."
+        },
+        {
+          "kind": "read-only-block",
+          "message": "공개 읽기 점검에서 쓰기 요청 또는 WebSocket을 차단했습니다."
+        },
+        {
+          "kind": "read-only-block",
+          "message": "공개 읽기 점검에서 쓰기 요청 또는 WebSocket을 차단했습니다."
+        }
+      ],
+      "checks": [
+        {
+          "name": "HTTP 응답",
+          "passed": true
+        },
+        {
+          "name": "브라우저 실행",
+          "passed": true
+        },
+        {
+          "name": "필수 화면 요소",
+          "passed": false
+        },
+        {
+          "name": "실제 화면 픽셀",
+          "passed": true
+        }
+      ],
+      "screenshot": null,
+      "screenshotOmittedReason": "공개 보고서에는 캡처와 고객 제목·관측 원문을 기본으로 게시하지 않습니다.",
+      "policy": {
+        "readOnly": true,
+        "blockedServiceWrites": 3,
+        "blockedServiceSockets": 0,
+        "blockedExternalWrites": 11,
+        "blockedExternalSockets": 0,
+        "blockedMutatingReads": 1
+      }
+    },
+    {
+      "id": "9ba0e3ba76b130d697d9",
+      "name": "3D 관람 · 9ba0e3ba",
+      "group": "3D 관람",
+      "url": "https://meum.me/meum-lite-viewer?r=YWmpma",
+      "status": "fail",
+      "checkedAt": "2026-10-29T04:32:46.493Z",
+      "durationMs": 95495,
+      "httpStatus": 200,
+      "issues": [
+        {
+          "kind": "http-resource",
+          "message": "필수 공개 리소스가 오류 응답을 반환했습니다."
+        },
+        {
+          "kind": "render-timeout",
+          "message": "화면 준비 조건을 제한 시간 안에 확인하지 못했습니다."
+        },
+        {
+          "kind": "3d-not-ready",
+          "message": "3D 엔진의 준비 완료를 확인하지 못했습니다."
+        },
+        {
+          "kind": "loading",
+          "message": "로딩이 끝나지 않았습니다."
+        },
+        {
+          "kind": "read-only-block",
+          "message": "공개 읽기 점검에서 쓰기 요청 또는 WebSocket을 차단했습니다."
+        },
+        {
+          "kind": "read-only-block",
+          "message": "공개 읽기 점검에서 쓰기 요청 또는 WebSocket을 차단했습니다."
+        },
+        {
+          "kind": "read-only-block",
+          "message": "공개 읽기 점검에서 쓰기 요청 또는 WebSocket을 차단했습니다."
+        }
+      ],
+      "checks": [
+        {
+          "name": "HTTP 응답",
+          "passed": true
+        },
+        {
+          "name": "브라우저 실행",
+          "passed": true
+        },
+        {
+          "name": "필수 화면 요소",
+          "passed": false
+        },
+        {
+          "name": "실제 화면 픽셀",
+          "passed": true
+        }
+      ],
+      "screenshot": null,
+      "screenshotOmittedReason": "공개 보고서에는 캡처와 고객 제목·관측 원문을 기본으로 게시하지 않습니다.",
+      "policy": {
+        "readOnly": true,
+        "blockedServiceWrites": 3,
+        "blockedServiceSockets": 0,
+        "blockedExternalWrites": 11,
+        "blockedExternalSockets": 0,
+        "blockedMutatingReads": 1
+      }
+    },
+    {
+      "id": "07ea6c2788e7634720f4",
+      "name": "3D 관람 · 07ea6c27",
+      "group": "3D 관람",
+      "url": "https://archive.meum.me/archive/viewer/3691",
+      "status": "unknown",
+      "checkedAt": "2026-10-29T04:34:06.070Z",
+      "durationMs": 78746,
+      "httpStatus": 200,
+      "issues": [
+        {
+          "kind": "read-only-block",
+          "message": "공개 읽기 점검에서 쓰기 요청 또는 WebSocket을 차단했습니다."
+        },
+        {
+          "kind": "read-only-block",
+          "message": "공개 읽기 점검에서 쓰기 요청 또는 WebSocket을 차단했습니다."
+        }
+      ],
+      "checks": [
+        {
+          "name": "HTTP 응답",
+          "passed": true
+        },
+        {
+          "name": "브라우저 실행",
+          "passed": true
+        },
+        {
+          "name": "필수 화면 요소",
+          "passed": true
+        },
+        {
+          "name": "실제 화면 픽셀",
+          "passed": true
+        }
+      ],
+      "screenshot": null,
+      "screenshotOmittedReason": "공개 보고서에는 캡처와 고객 제목·관측 원문을 기본으로 게시하지 않습니다.",
+      "policy": {
+        "readOnly": true,
+        "blockedServiceWrites": 2,
+        "blockedServiceSockets": 0,
+        "blockedExternalWrites": 0,
+        "blockedExternalSockets": 0,
+        "blockedMutatingReads": 2
+      }
+    }
+  ],
   "history": [],
-  "withheldResults": 0,
-  "coverageOmittedResults": 0,
-  "identityWithheldResults": 0,
+  "withheldResults": 2,
+  "coverageOmittedResults": 2,
+  "identityWithheldResults": 2,
   "businessVerification": {
     "required": true,
     "status": "blocked",
@@ -100,7 +1795,7 @@
       }
     ]
   },
-  "exportedAt": "2026-10-29T04:21:26.629Z",
+  "exportedAt": "2026-10-29T04:34:10.749Z",
   "nextRunAt": null,
   "workflowUrl": "https://github.com/meum-official/meum-render-monitor/actions/workflows/render-check.yml",
   "scheduleDescription": "매시간 배포 변경을 확인하며, 배포 후 6시간 동안 공개 대표 표본을 점검합니다. 예약 실행은 지연될 수 있습니다.",
