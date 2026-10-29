@@ -9,6 +9,11 @@
   let fetching = false;
   let requestingRun = false;
   let lastFetchAt = 0;
+  const openRequestLogs = new Set();
+  const causeLabels = { 'http-resource': 'HTTP 리소스 오류', network: '네트워크 실패', 'policy-block': '읽기 전용 정책 차단', readiness: '화면 준비 미완료', navigation: '페이지 이동 실패', javascript: '자바스크립트 실행 오류', render: '화면·픽셀 이상', 'unclassified-resource': '리소스 역할 미분류' };
+  const severityLabels = { failure: '실패', warning: '주의', blocked: '차단', unknown: '미확인' };
+  const blockedLabels = { 'mutating-method': '쓰기 메서드 차단', 'known-mutating-read': '부작용이 있는 GET/HEAD 차단', 'websocket-disabled': 'WebSocket 차단', 'entry-navigation-not-executed': '관람 이동 미실행', 'network-failed': '네트워크 실패', pending: '응답 미확인' };
+  const policyLabels = { 'aggregate-counter-repair': '집계 값 복구', 'exhibition-auto-close': '종료 전시 자동 변경', 'page-view-count': '페이지 방문 집계', 'viewer-visit-and-migration': '관람 방문 집계·데이터 이관', 'comment-default-create': '댓글 기본값 생성', 'scene-dto-migration': '장면 데이터 이관', 'invitation-default-create': '초대장 기본값 생성', 'rose-claim-and-capability': '선물 수령 처리·소켓 권한 발급', 'password-attempt-state': '비밀번호 시도 상태 변경', 'socket-capability': '소켓 권한 발급', 'board-view-count': '게시물 조회 집계', 'invalid-url': '유효하지 않은 주소', 'mutating-method': '쓰기 메서드', 'websocket-disabled': 'WebSocket 비활성', 'entry-navigation-not-executed': '관람 이동 미실행' };
 
   function el(tag, className, text) {
     const node = document.createElement(tag);
@@ -45,6 +50,83 @@
   }
   function issueMessage(issue) {
     return typeof issue === 'string' ? issue : String(issue?.message || issue?.kind || '알 수 없는 오류');
+  }
+  function formatUtc(value) {
+    return value && Number.isFinite(Date.parse(value)) ? new Date(value).toISOString().replace('T', ' ').replace('Z', ' UTC') : '시각 미확인';
+  }
+  function renderDiagnostics(result) {
+    const section = el('section', 'diagnostics');
+    section.setAttribute('aria-label', '원인별 요청 진단');
+    section.append(el('p', 'detail-label', '원인별 요청 진단'));
+    const diagnostic = result.diagnostics;
+    if (diagnostic?.schemaVersion !== 1) {
+      section.append(el('p', 'muted', '이전 결과에는 요청별 진단이 없습니다. 새 점검에서 UTC 시각·HTTP 상태·차단 사유를 수집합니다.'));
+      return section;
+    }
+    const groups = Array.isArray(diagnostic.groups) ? diagnostic.groups : [];
+    if (diagnostic.primaryCause && causeLabels[diagnostic.primaryCause]) section.append(el('p', 'diagnostic-primary', `주요 원인 · ${causeLabels[diagnostic.primaryCause]}`));
+    if (groups.length) {
+      const list = el('ul', 'diagnostic-groups');
+      for (const group of groups) {
+        const severity = Object.hasOwn(severityLabels, group.severity) ? group.severity : 'unknown';
+        const item = el('li', 'diagnostic-group ' + severity);
+        item.append(el('span', 'diagnostic-severity', severityLabels[severity]), el('span', '', `${causeLabels[group.cause] || '분류 확인 필요'} · ${Number.isSafeInteger(group.count) ? group.count : 0}건`));
+        if (group.cause === 'readiness') item.append(el('span', 'muted', '시간 초과·Unity 전역값·로딩·필수 요소를 한 원인으로 묶었습니다.'));
+        if (Array.isArray(group.requestIds) && group.requestIds.length) item.append(el('span', 'diagnostic-ids', group.requestIds.slice(0, 6).join(', ') + (group.requestIds.length > 6 ? ` 외 ${group.requestIds.length - 6}건` : '')));
+        list.append(item);
+      }
+      section.append(list);
+    } else section.append(el('p', 'muted', '이 실행에서 분류된 진단 원인이 없습니다.'));
+    const readiness = diagnostic.readiness;
+    if (readiness) {
+      const readinessLabels = { ready: '준비 확인', failed: '준비 실패', blocked: '정책으로 미확인', unverified: '미확인' };
+      const milliseconds = value => Number.isFinite(value) && value >= 0 ? `${(value / 1000).toFixed(1)}초` : '미확인';
+      section.append(el('p', 'diagnostic-readiness', `화면 준비: ${readinessLabels[readiness.state] || '미확인'} · 전역값 ${readiness.requiredGlobal || '없음'} · 필수 요소 ${Array.isArray(readiness.selectors) ? readiness.selectors.length : 0}개 · 로딩 조건 ${Array.isArray(readiness.loading) ? readiness.loading.length : 0}개 · 경과 ${milliseconds(readiness.elapsedMs)} / 준비 제한 ${milliseconds(diagnostic.timeouts?.readinessMs)} · 이동 제한 ${milliseconds(diagnostic.timeouts?.navigationMs)}`));
+      if (readiness.observed) {
+        const observed = readiness.observed;
+        const conditions = el('ul', 'diagnostic-conditions');
+        for (const selector of readiness.selectors || []) conditions.append(el('li', '', `${selector} · ${(observed.missingSelectors || []).includes(selector) ? '미확인' : '확인'}`));
+        for (const selector of readiness.loading || []) conditions.append(el('li', '', `${selector} · ${(observed.visibleLoading || []).includes(selector) ? '로딩 표시 중' : '로딩 표시 없음'}`));
+        if (readiness.requiredGlobal) conditions.append(el('li', '', `${readiness.requiredGlobal} · ${observed.globalReady === true ? '확인' : '미확인'}`));
+        section.append(conditions);
+      }
+    }
+    const requests = Array.isArray(diagnostic.requests) ? diagnostic.requests : [];
+    const details = el('details', 'request-log');
+    details.open = openRequestLogs.has(result.id);
+    const omitted = Number.isSafeInteger(diagnostic.droppedRequests) && diagnostic.droppedRequests > 0 ? ` · 한도 초과 ${diagnostic.droppedRequests}건 미기록` : '';
+    details.append(el('summary', '', `요청 기록 ${requests.length}건 · UTC${omitted}`));
+    let rendered = false;
+    const fill = () => {
+      if (!details.open || rendered) return;
+      rendered = true;
+      const wrapper = el('div', 'request-table-wrap');
+      const table = el('table', 'request-table');
+      const caption = el('caption', 'sr-only', '요청 순서, 요청 ID, UTC 시작·완료 시각, 메서드, 리소스 종류, 마스킹된 출처·경로, HTTP 상태 또는 차단 사유');
+      const head = el('thead'); const headings = el('tr');
+      for (const name of ['순서 · 요청 ID', '요청 시각 (UTC)', '메서드 · 종류', '출처 · 마스킹된 경로', 'HTTP · 차단 사유']) headings.append(el('th', '', name));
+      head.append(headings); const body = el('tbody');
+      for (const request of requests) {
+        const row = el('tr');
+        const id = el('td'); id.append(el('span', '', `#${request.seq}`), el('code', '', request.requestId));
+        const at = el('td'); at.append(el('time', '', formatUtc(request.at)));
+        if (request.responseAt) at.append(el('span', 'request-completed', '응답 ' + formatUtc(request.responseAt)));
+        if (request.completedAt) at.append(el('span', 'request-completed', '완료 ' + formatUtc(request.completedAt)));
+        const method = el('td'); method.append(el('strong', '', request.method || '미확인'), el('span', '', `${request.resourceType || '미확인'} · ${{ essential: '필수', optional: '선택', unknown: '역할 미분류' }[request.role] || '역할 미분류'}`));
+        const location = el('td'); location.append(el('span', 'request-origin', request.origin || '출처 미확인'), el('code', 'request-path', request.path || '경로 비공개'));
+        const outcome = el('td', Number.isSafeInteger(request.status) && request.status >= 400 ? 'request-http-error' : '');
+        outcome.append(el('strong', '', Number.isSafeInteger(request.status) ? `HTTP ${request.status}` : 'HTTP 상태 없음'));
+        if (blockedLabels[request.blockedReason]) outcome.append(el('span', '', blockedLabels[request.blockedReason]));
+        if (policyLabels[request.policyCode]) outcome.append(el('span', '', policyLabels[request.policyCode]));
+        if (request.contract) outcome.append(el('span', 'muted', request.contract));
+        row.append(id, at, method, location, outcome); body.append(row);
+      }
+      table.append(caption, head, body); wrapper.append(table); details.append(wrapper);
+      if (!requests.length) details.append(el('p', 'muted', '저장된 요청 기록이 없습니다. 요청이 성공했다는 뜻은 아닙니다.'));
+    };
+    details.addEventListener('toggle', () => { if (details.open) openRequestLogs.add(result.id); else openRequestLogs.delete(result.id); fill(); });
+    fill(); section.append(details);
+    return section;
   }
   function renderOverview(results) {
     const counts = { pass: 0, fail: 0, unknown: 0 };
@@ -105,7 +187,8 @@
     evidence.append(el('p', 'detail-label', '검사 근거'));
     evidence.append(el('p', 'detail-meta', `그룹: ${result.group || '기타'} · 확인: ${formatDate(result.checkedAt)} · 응답: ${result.httpStatus ?? '미확인'} · 소요: ${Number.isFinite(result.durationMs) ? (result.durationMs / 1000).toFixed(1) + '초' : '미확인'}`));
     if (result.policy?.readOnly) evidence.append(el('p', 'detail-meta', `읽기 전용 차단 · 서비스 요청 ${Number(result.policy.blockedServiceWrites || 0) + Number(result.policy.blockedServiceSockets || 0)}건 · 외부 분석 요청 ${Number(result.policy.blockedExternalWrites || 0) + Number(result.policy.blockedExternalSockets || 0)}건 (외부 분석 차단은 화면 판정을 바꾸지 않습니다)`));
-    const issues = Array.isArray(result.issues) ? result.issues.map(issueMessage) : [];
+    const groupedReadiness = result.diagnostics?.groups?.some(group => group.cause === 'readiness' || group.derivedKinds?.length);
+    const issues = Array.isArray(result.issues) ? result.issues.filter(issue => !groupedReadiness || !['render-timeout', '3d-not-ready', 'loading', 'required-content'].includes(issue.kind)).map(issueMessage) : [];
     if (['pass', 'fail'].includes(result.status) && isStale(result)) issues.unshift(connected ? '이 결과는 오래되어 현재 상태를 미확인으로 표시합니다. 새 점검이 필요합니다.' : '점검 서버와 연결이 끊겨 현재 상태를 확인할 수 없습니다.');
     if (result.status === 'pending') issues.unshift('아직 이 페이지를 점검하지 않았습니다.');
     if (issues.length) {
@@ -123,6 +206,7 @@
       }
       evidence.append(list);
     } else if (!issues.length) evidence.append(el('p', 'muted', '상세 검사 근거가 아직 없습니다.'));
+    evidence.append(renderDiagnostics(result));
     if (safeLink(result.url)) evidence.append(makeLink(result.url, '실제 페이지 열기 ↗', 'detail-link'));
     else if (result.identityWithheld) evidence.append(el('p', 'muted', result.identityWithheldReason || '공개 경로 식별자는 비공개이며 검사 판정은 유지합니다.'));
     const capture = el('div');
