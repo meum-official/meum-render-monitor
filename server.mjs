@@ -5,7 +5,10 @@ import { fileURLToPath } from 'node:url';
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { classify, discover } from './discovery.mjs';
 import { launchBrowser, probe, safeMessage } from './probe.mjs';
-import { fingerprint as publicFingerprint } from './ci.mjs';
+import { fingerprint as publicFingerprint, invalidateCycle } from './ci.mjs';
+import { runJourneys } from './journeys.mjs';
+import { runBusinessScenarios } from './business.mjs';
+import { withLayers, normalizeBusinessVerification, verificationSummary } from './verification.mjs';
 
 export const ROOT = path.dirname(fileURLToPath(import.meta.url));
 export const DATA = path.resolve(process.env.DATA_DIR || path.join(ROOT, 'data'));
@@ -24,16 +27,37 @@ export async function loadConfig() {
   if (process.env.RETAINED_RUNS) config.retainedRuns = Number(process.env.RETAINED_RUNS);
   for (const key of ['navigationTimeoutMs', 'renderTimeoutMs', 'settleMs', 'betweenPagesMs', 'maxSitemaps', 'maxRoomPages', 'retainedRuns']) if (!Number.isFinite(config[key]) || config[key] < (['settleMs', 'betweenPagesMs'].includes(key) ? 0 : 1)) throw new Error(`잘못된 설정: ${key}`);
   if (!Array.isArray(config.origins) || !config.origins.length || !config.viewports?.length) throw new Error('origins/viewports 설정이 필요합니다.');
+  for (const origin of config.origins) {
+    const url = new URL(origin);
+    if (!['http:', 'https:'].includes(url.protocol) || url.origin !== origin || url.username || url.password) throw new Error('origins에는 인증 정보 없는 정확한 HTTP(S) 출처만 허용합니다.');
+  }
+  if (config.journeyTimeoutMs != null && (!Number.isFinite(config.journeyTimeoutMs) || config.journeyTimeoutMs < 1)) throw new Error('journeyTimeoutMs는 양수여야 합니다.');
   return config;
 }
 
 export function emptyState() {
-  return { schemaVersion: 1, status: 'idle', runId: null, startedAt: null, completedAt: null, nextRunAt: null, intervalMinutes: Number(process.env.INTERVAL_MINUTES || 60), mode: process.env.MONITOR_MODE || 'continuous', discovery: { complete: false, source: null, totalExhibitions: 0, totalTargets: 0, errors: [] }, results: [], history: [] };
+  const businessVerification = normalizeBusinessVerification();
+  return { schemaVersion: 2, status: 'idle', runId: null, startedAt: null, completedAt: null, nextRunAt: null, intervalMinutes: Number(process.env.INTERVAL_MINUTES || 60), mode: process.env.MONITOR_MODE || 'continuous', discovery: { complete: false, source: null, totalExhibitions: 0, totalTargets: 0, errors: [] }, results: [], history: [], businessVerification, verification: verificationSummary([], businessVerification) };
 }
 
 export async function readState() {
-  try { return JSON.parse(await readFile(path.join(DATA, 'status.json'), 'utf8')); }
+  try {
+    const saved = JSON.parse(await readFile(path.join(DATA, 'status.json'), 'utf8'));
+    if (!Array.isArray(saved.results)) throw new Error('점검 상태 형식이 올바르지 않습니다.');
+    if (saved.scope !== 'representative-render-only' && !saved.discovery?.sampling) saved.results = saved.results.map(result => ({ ...withLayers(result, result.layers?.navigation), legacyRenderOnly: !result.layers || result.legacyRenderOnly }));
+    saved.businessVerification = normalizeBusinessVerification(saved.businessVerification);
+    saved.verification = verificationSummary(saved.results, saved.businessVerification);
+    saved.schemaVersion = 2;
+    return saved;
+  }
   catch (error) { if (error.code !== 'ENOENT') throw error; return emptyState(); }
+}
+
+export function markDeploymentChanged(state) {
+  Object.assign(state, invalidateCycle(state, { resetCycle: true, errors: [] }));
+  state.verification = verificationSummary(state.results, state.businessVerification);
+  state.nextRunAt = iso();
+  return state;
 }
 
 async function retainRuns(keep) {
@@ -48,20 +72,26 @@ async function retainRuns(keep) {
 }
 
 export async function runScan(config, state, persist, { stopAt = Infinity, signal } = {}) {
+  const representative = config.sampling?.enabled === true;
   const previous = state.continuation ? structuredClone(state) : null;
   state.runId = previous?.runId || `run-${Date.now()}-${randomBytes(3).toString('hex')}`;
   state.status = 'running'; state.startedAt = previous?.startedAt || iso(); state.completedAt = null; state.nextRunAt = null; state.continuation = false;
   state.attemptStartedAt = iso();
+  state.schemaVersion = 2;
+  state.scope = representative ? 'representative-render-only' : 'required-layers';
+  state.businessVerification = normalizeBusinessVerification();
+  const checkpoint = async () => { state.verification = verificationSummary(state.results, state.businessVerification); await persist(); };
   state.results = []; state.discovery = { complete: false, source: null, totalExhibitions: 0, totalTargets: 0, errors: [] };
-  await persist();
+  await checkpoint();
   let browser;
   const cancel = () => { void browser?.close().catch(() => {}); };
   signal?.addEventListener('abort', cancel, { once: true });
   try {
     const inventory = await discover(config, fetch, { sampling: previous?.discovery?.sampling });
     state.discovery = { ...inventory, pages: undefined, totalTargets: inventory.pages.length * config.viewports.length };
-    state.results = inventory.pages.flatMap(page => config.viewports.map(viewport => ({ ...page, id: createHash('sha256').update(page.url + viewport.name).digest('hex').slice(0, 20), viewport, name: `${page.name}${config.viewports.length > 1 ? ` · ${viewport.name}` : ''}`, status: 'pending', checkedAt: null, issues: [], checks: [] })));
-    const definitions = await Promise.all(['contracts.mjs', 'probe.mjs', 'diagnostic.mjs', 'resource-contracts.mjs', 'discovery.mjs', 'sampling.mjs', 'read-only-policy.mjs', 'server.mjs', 'package-lock.json'].map(name => readFile(path.join(ROOT, name), 'utf8')));
+    const pending = row => representative ? { ...row, status: 'pending', checkedAt: null, issues: [], checks: [] } : withLayers({ ...row, status: 'pending', checkedAt: null, issues: [], checks: [] }, { status: 'not-run', reason: '기능/이동 검사를 아직 실행하지 않았습니다.' });
+    state.results = inventory.pages.flatMap(page => config.viewports.map(viewport => pending({ ...page, id: createHash('sha256').update(page.url + viewport.name).digest('hex').slice(0, 20), viewport, name: `${page.name}${config.viewports.length > 1 ? ` · ${viewport.name}` : ''}` })));
+    const definitions = await Promise.all(['contracts.mjs', 'probe.mjs', 'diagnostic.mjs', 'resource-contracts.mjs', 'discovery.mjs', 'sampling.mjs', 'read-only-policy.mjs', 'safety.mjs', 'verification.mjs', 'journeys.mjs', 'journey-contracts.mjs', 'business.mjs', 'business-contracts.mjs', 'checkpoint.mjs', 'server.mjs', 'package-lock.json'].map(name => readFile(path.join(ROOT, name), 'utf8')));
     const signature = createHash('sha256').update(JSON.stringify([config, state.results.map(x => x.id).sort(), definitions])).digest('hex');
     if (previous?.inventorySignature === signature) {
       const known = new Map(previous.results.map(x => [x.id, x]));
@@ -69,6 +99,10 @@ export async function runScan(config, state, persist, { stopAt = Infinity, signa
         const cached = known.get(row.id);
         if (!cached?.checkedAt || !Number.isFinite(Date.parse(cached.checkedAt))) return row;
         // Public checkpoints omit target details; use freshly validated URL/rule/viewport.
+        if (!representative) {
+          const { layers, status, checkedAt, issues, checks, ...freshTarget } = row;
+          return { ...cached, ...freshTarget };
+        }
         return { ...cached, ...row, status: cached.status, checkedAt: cached.checkedAt, issues: cached.issues || [], checks: cached.checks || [], durationMs: cached.durationMs, httpStatus: cached.httpStatus, screenshot: null };
       });
       const sources = new Set(inventory.pages.map(x => x.url));
@@ -76,9 +110,15 @@ export async function runScan(config, state, persist, { stopAt = Infinity, signa
       if (!config.sampling?.enabled) state.results.push(...previous.results.filter(x => x.discoveredFrom && sources.has(x.discoveredFrom) && !ids.has(x.id)).map(x => x.checkedAt ? x : { ...x, status: 'pending', issues: [] }));
     } else if (previous) { state.runId = `run-${Date.now()}-${randomBytes(3).toString('hex')}`; state.startedAt = iso(); }
     state.inventorySignature = signature;
-    await persist();
+    await checkpoint();
     if (signal?.aborted) throw new Error('점검 프로그램이 종료됐습니다.');
     browser = await launchBrowser();
+    if (representative) {
+      state.businessVerification = normalizeBusinessVerification();
+      state.businessVerification.status = 'blocked';
+      state.businessVerification.cases = state.businessVerification.cases.map(item => ({ ...item, status: 'blocked' }));
+    } else state.businessVerification = normalizeBusinessVerification(await runBusinessScenarios(browser, config));
+    await checkpoint();
     const limit = process.env.SCAN_LIMIT ? Number(process.env.SCAN_LIMIT) : Infinity;
     if (!Number.isInteger(limit) && limit !== Infinity || limit < 1) throw new Error('SCAN_LIMIT은 양의 정수여야 합니다.');
     const budget = process.env.SCAN_MAX_MINUTES ? Number(process.env.SCAN_MAX_MINUTES) * 60000 : Infinity;
@@ -90,34 +130,50 @@ export async function runScan(config, state, persist, { stopAt = Infinity, signa
       if (processed >= limit || Date.now() >= deadline || signal?.aborted) {
         state.continuation = true;
         state.discovery.errors.push(processed >= limit ? `검증용 SCAN_LIMIT=${limit}: 나머지 페이지는 미확인입니다.` : '점검 시간 범위가 끝나 나머지 페이지는 미확인입니다.');
-        for (const row of state.results.slice(index)) if (!row.checkedAt) { row.status = 'unknown'; row.issues = [{ kind: 'not-checked', message: '이번 실행에서 브라우저 검사를 마치지 못했습니다. 다음 실행에서 이어갑니다.' }]; }
+        for (const row of state.results.slice(index)) if (!row.checkedAt) { row.status = 'unknown'; row.issues = [{ kind: 'not-checked', message: '이번 실행에서 브라우저·기능 검사를 마치지 못했습니다. 다음 실행에서 이어갑니다.' }]; }
         break;
       }
-      state.results[index] = await probe(browser, state.results[index], { ...config, diagnosticSampling: inventory.sampling }, path.join(DATA, 'screenshots', state.runId));
-      for (const page of config.sampling?.enabled ? [] : state.results[index].discoveredPages || []) {
+      const target = state.results[index];
+      const rendered = await probe(browser, target, { ...config, diagnosticSampling: inventory.sampling }, path.join(DATA, 'screenshots', state.runId));
+      if (representative) state.results[index] = rendered;
+      else {
+      let navigation;
+      if (config.functionalNavigation === false) navigation = { status: 'not-run', reason: '기능/이동 검사가 명시적으로 비활성화됐습니다.' };
+      else if (Date.now() >= deadline || signal?.aborted) navigation = { status: 'not-run', reason: '실행 시간 범위가 끝나 기능/이동 검사를 시작하지 못했습니다.' };
+      else {
+        try { navigation = { ...await runJourneys(browser, target, config), checkedAt: iso() }; }
+        catch (error) { navigation = { status: 'blocked', checkedAt: iso(), reason: `기능 검사 실행 오류: ${safeMessage(error.message)}` }; }
+      }
+      state.results[index] = withLayers({ ...rendered, layers: undefined }, navigation);
+      if (config.functionalNavigation !== false && navigation.status === 'not-run' && (Date.now() >= deadline || signal?.aborted)) state.results[index].checkedAt = null;
+      }
+      for (const page of representative ? [] : state.results[index].discoveredPages || []) {
         for (const viewport of config.viewports) {
           const id = createHash('sha256').update(page.url + viewport.name).digest('hex').slice(0, 20);
-          if (!state.results.some(row => row.id === id)) state.results.push({ ...page, id, viewport, status: 'pending', checkedAt: null, issues: [], checks: [] });
+          if (!state.results.some(row => row.id === id)) state.results.push(pending({ ...page, id, viewport }));
         }
       }
       state.discovery.totalTargets = state.results.length;
       processed++;
-      await persist();
+      await checkpoint();
       console.log(`[${index + 1}/${state.results.length}] ${state.results[index].status} ${classify(state.results[index].url)} ${state.results[index].id}`);
       if (config.betweenPagesMs) await delay(config.betweenPagesMs);
     }
     state.status = 'completed';
   } catch (error) {
     state.status = 'failed'; state.discovery.errors.push(`점검기 실행 오류: ${safeMessage(error.message)}`);
-    for (const row of state.results) if (row.status === 'pending') { row.status = 'unknown'; row.issues = [{ kind: 'runner', message: '점검기를 실행하지 못해 현재 상태를 확인할 수 없습니다.' }]; }
+    for (const row of state.results) if (!row.checkedAt) {
+      row.status = 'unknown'; row.issues = [{ kind: 'runner', message: '점검기를 실행하지 못해 현재 상태를 확인할 수 없습니다.' }];
+      if (row.layers && !row.layers.render?.checkedAt) row.layers.render = { required: true, status: 'blocked', reason: '브라우저 검사 실행을 완료하지 못했습니다.' };
+    }
   } finally {
     signal?.removeEventListener('abort', cancel);
     await browser?.close().catch(() => {});
     state.completedAt = iso();
     const counts = { pass: 0, fail: 0, unknown: 0 };
     for (const row of state.results) counts[row.status === 'pass' ? 'pass' : row.status === 'fail' ? 'fail' : 'unknown']++;
-    state.history = [...(state.history || []), { runId: state.runId, completedAt: state.completedAt, ...counts, total: state.results.length, complete: state.discovery.complete && counts.unknown === 0, scope: config.sampling?.enabled ? 'representative-render-only' : 'legacy-render-only' }].slice(-config.retainedRuns);
-    await persist();
+    state.history = [...(state.history || []), { runId: state.runId, completedAt: state.completedAt, ...counts, total: state.results.length, complete: state.discovery.complete && counts.unknown === 0 && (representative || state.businessVerification.status === 'pass'), scope: representative ? 'representative-render-only' : 'required-layers' }].slice(-config.retainedRuns);
+    await checkpoint();
     await retainRuns(config.retainedRuns);
   }
   return state;
@@ -182,7 +238,7 @@ async function main() {
   const state = await readState();
   if (state.status === 'running') { state.status = 'failed'; state.completedAt = iso(); state.continuation = true; for (const row of state.results) if (row.status === 'pending') row.status = 'unknown'; await saveJson(path.join(DATA, 'status.json'), state); }
   state.mode = process.env.MONITOR_MODE || 'continuous';
-  state.intervalMinutes = Number(process.env.INTERVAL_MINUTES || (state.mode === 'after-deploy' ? 30 : 60));
+  state.intervalMinutes = Number(process.env.INTERVAL_MINUTES || 60);
   if (!['continuous', 'after-deploy'].includes(state.mode) || !Number.isFinite(state.intervalMinutes) || state.intervalMinutes < 1) throw new Error('MONITOR_MODE/INTERVAL_MINUTES 설정 오류');
   const persist = () => saveJson(path.join(DATA, 'status.json'), state);
   if (process.argv.includes('--once')) {
@@ -190,7 +246,7 @@ async function main() {
       const stopAt = process.env.MONITOR_STOP_AT && state.mode === 'after-deploy' ? Date.parse(process.env.MONITOR_STOP_AT) : Infinity;
       if (Number.isNaN(stopAt)) throw new Error('MONITOR_STOP_AT 시각이 올바르지 않습니다.');
       await runScan(config, state, persist, { stopAt });
-      process.exitCode = state.status === 'failed' || !state.discovery.complete || state.results.some(x => x.status === 'unknown') ? 2 : state.results.some(x => x.status === 'fail') ? 1 : 0;
+      process.exitCode = state.results.some(x => x.status === 'fail') || (!config.sampling?.enabled && state.businessVerification.status === 'fail') ? 1 : state.status === 'failed' || !state.discovery.complete || state.results.some(x => x.status === 'unknown') || (!config.sampling?.enabled && state.businessVerification.status !== 'pass') ? 2 : 0;
     } finally { await unlock(); }
     return;
   }
@@ -201,13 +257,18 @@ async function main() {
   const controller = new AbortController();
   let activeUntil = state.mode === 'continuous' ? Infinity : Date.now() + burstMs;
   let fingerprint;
+  let deploymentRevision = 0;
   const startScan = () => {
     if (busy) return;
     busy = true;
     if (state.mode === 'after-deploy' && Date.now() >= activeUntil) activeUntil = Date.now() + burstMs;
     state.activeUntil = Number.isFinite(activeUntil) ? new Date(activeUntil).toISOString() : null;
+    const runRevision = deploymentRevision;
     currentRun = runScan(config, state, persist, { stopAt: activeUntil, signal: controller.signal }).finally(async () => {
-      state.nextRunAt = Date.now() + state.intervalMinutes * 60000 < activeUntil ? new Date(Date.now() + state.intervalMinutes * 60000).toISOString() : null;
+      // A deployment observed during the run must also invalidate its final
+      // checkpoint; runScan may have set continuation=true after detection.
+      if (runRevision !== deploymentRevision) markDeploymentChanged(state);
+      else state.nextRunAt = Date.now() + state.intervalMinutes * 60000 < activeUntil ? new Date(Date.now() + state.intervalMinutes * 60000).toISOString() : null;
       busy = false; await persist();
     }).catch(e => console.error(safeMessage(e.message)));
   };
@@ -223,7 +284,11 @@ async function main() {
     try {
       if (state.mode === 'after-deploy') {
         const next = await deploymentFingerprint(config);
-        if (fingerprint && next !== fingerprint) { activeUntil = Date.now() + burstMs; state.nextRunAt = iso(); state.continuation = false; }
+        if (fingerprint && next !== fingerprint) {
+          activeUntil = Date.now() + burstMs; deploymentRevision++;
+          markDeploymentChanged(state);
+          await persist();
+        }
         fingerprint = next; state.watcherError = null;
       }
       if (!busy && Date.now() < activeUntil && state.nextRunAt && Date.now() >= Date.parse(state.nextRunAt)) startScan();

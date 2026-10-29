@@ -61,7 +61,7 @@ describe('real Chromium render checks using only local HTTP fixtures', { skip: !
       server.listen(0, '127.0.0.1', resolve);
     });
     origin = `http://127.0.0.1:${server.address().port}`;
-    config = { origins: [origin], navigationTimeoutMs: 3000, renderTimeoutMs: 1000, settleMs: 100 };
+    config = { origins: [origin], navigationTimeoutMs: 3000, renderTimeoutMs: 1000, settleMs: 100, captureScreenshots: true, functionalNavigation: false };
     browser = await launchBrowser();
   });
 

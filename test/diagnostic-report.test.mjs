@@ -15,6 +15,25 @@ const request = (seq, extra = {}) => ({ seq, requestId: `${id}-${seq}`, at, comp
 const diagnostic = () => ({ schemaVersion: 1, requests: [request(1), request(2, { origin: 'https://backend.meum.me', path: '/api/rooms/comment-settings/4348', resourceType: 'fetch', status: null, blockedReason: 'known-mutating-read', policyCode: 'comment-default-create', contract: 'viewer-comments', sourceEvidence: 'viewer-comments' }), request(3, { path: '/exhibition/preview/4348', resourceType: 'document', status: 200, contract: 'document', sourceEvidence: 'document' })], groups: [{ cause: 'readiness', severity: 'failure', count: 3, requestIds: [], derivedKinds: ['render-timeout', '3d-not-ready', 'loading'] }, { cause: 'http-resource', severity: 'failure', count: 1, requestIds: [`${id}-1`], derivedKinds: [] }, { cause: 'policy-block', severity: 'blocked', count: 1, requestIds: [`${id}-2`], derivedKinds: [] }], primaryCause: 'readiness', droppedRequests: 0, timeouts: { navigationMs: 30000, readinessMs: 90000 }, readiness: { state: 'failed', selectors: ['.meum-lite-viewer-container canvas#unity-canvas'], requiredGlobal: 'unityInstance', loading: ['.meum-lite-viewer-container .loading-overlay'], errorSelectors: [], elapsedMs: 90000 } });
 const source = () => ({ schemaVersion: 1, status: 'completed', runId: 'run-1-abcdef', startedAt: new Date().toISOString(), attemptStartedAt: new Date().toISOString(), completedAt: new Date().toISOString(), intervalMinutes: 60, discovery: { complete: true, totalTargets: 1, totalExhibitions: 1, sampling: sampling(), errors: [] }, results: [{ id, name: 'SECRET_CUSTOMER', url: 'https://meum.me/exhibition/preview/4348', group: '전시 프리뷰', status: 'fail', checkedAt: new Date().toISOString(), checks: [{ name: 'HTTP 응답', passed: true }, { name: '브라우저 실행', passed: true }, { name: '필수 화면 요소', passed: false }, { name: '실제 화면 픽셀', passed: null }], issues: ['render-timeout', '3d-not-ready', 'loading'].map(kind => ({ kind, message: 'SECRET_RAW_ERROR' })), diagnostics: diagnostic() }] });
 
+test('representative collection failure keeps the public schema and request diagnostics before sampling metadata exists', () => {
+  const raw = source();
+  raw.schemaVersion = 2;
+  raw.scope = 'representative-render-only';
+  raw.status = 'failed';
+  raw.discovery.complete = false;
+  delete raw.discovery.sampling;
+  raw.results[0].url = 'https://meum.me/home';
+  raw.results[0].diagnostics.requests = [request(1), request(3, { path: '/home', resourceType: 'document', status: 200, contract: 'document', sourceEvidence: 'document' })];
+  raw.results[0].diagnostics.groups = [{ cause: 'http-resource', severity: 'failure', count: 1, requestIds: [`${id}-1`], derivedKinds: [] }];
+  raw.results[0].diagnostics.primaryCause = 'http-resource';
+  const report = publicSummary(raw);
+  assert.equal(report.schemaVersion, 1);
+  assert.equal(report.status, 'failed');
+  assert.equal(report.discovery.complete, false);
+  assert.equal(report.results[0].diagnostics.requests[0].status, 404);
+  assert.equal(report.businessVerification.status, 'blocked');
+});
+
 test('public diagnostic export preserves request identity/UTC/exact HTTP and block policy while removing arbitrary raw fields', () => {
   const raw = source();
   raw.results[0].diagnostics.headers = { Authorization: 'SECRET_AUTH' };

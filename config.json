@@ -1,22 +1,76 @@
 {
-  "sitemaps": ["https://meum.me/sitemap.xml", "https://archive.meum.me/sitemap.xml"],
-  "origins": ["https://meum.me", "https://archive.meum.me", "https://board.meum.me"],
+  "sitemaps": [
+    "https://meum.me/sitemap.xml",
+    "https://archive.meum.me/sitemap.xml"
+  ],
+  "origins": [
+    "https://meum.me",
+    "https://archive.meum.me",
+    "https://board.meum.me"
+  ],
   "roomListUrl": "https://backend.meum.me/room/list",
-  "fingerprintUrls": ["https://meum.me/home", "https://archive.meum.me/"],
+  "fingerprintUrls": [
+    "https://meum.me/home",
+    "https://archive.meum.me/"
+  ],
   "followViewerEntries": true,
-  "sampling": { "enabled": true, "previews": 3, "invitations": 3, "viewers": 3, "maxRoomPages": 2, "maxCandidateChecks": 12 },
+  "sampling": {
+    "enabled": true,
+    "previews": 3,
+    "invitations": 3,
+    "viewers": 3,
+    "maxRoomPages": 2,
+    "maxCandidateChecks": 12
+  },
   "captureScreenshots": false,
   "priorityPages": [],
   "extraPages": [
-    { "url": "https://meum.me/home", "name": "믐 홈" },
-    { "url": "https://meum.me/exhibition", "name": "공개 전시 목록" },
-    { "url": "https://meum.me/plan", "name": "요금제" },
-    { "url": "https://meum.me/login", "name": "로그인" },
-    { "url": "https://meum.me/webtoon", "name": "웹툰" },
-    { "url": "https://meum.me/register", "name": "회원가입" },
-    { "url": "https://archive.meum.me/", "name": "아카이브 홈" }
+    {
+      "url": "https://meum.me/home",
+      "name": "믐 홈"
+    },
+    {
+      "url": "https://meum.me/exhibition",
+      "name": "공개 전시 목록"
+    },
+    {
+      "url": "https://meum.me/plan",
+      "name": "요금제"
+    },
+    {
+      "url": "https://meum.me/login",
+      "name": "로그인"
+    },
+    {
+      "url": "https://meum.me/webtoon",
+      "name": "웹툰"
+    },
+    {
+      "url": "https://meum.me/register",
+      "name": "회원가입"
+    },
+    {
+      "url": "https://archive.meum.me/",
+      "name": "아카이브 홈"
+    }
   ],
-  "viewports": [{ "name": "desktop", "width": 1440, "height": 1000 }],
+  "viewports": [
+    {
+      "name": "desktop",
+      "width": 1440,
+      "height": 1000
+    },
+    {
+      "name": "mobile",
+      "width": 390,
+      "height": 844,
+      "isMobile": true
+    }
+  ],
+  "locale": "ko-KR",
+  "functionalNavigation": true,
+  "journeyLanguage": "ko",
+  "journeyTimeoutMs": 10000,
   "navigationTimeoutMs": 30000,
   "renderTimeoutMs": 20000,
   "settleMs": 2500,

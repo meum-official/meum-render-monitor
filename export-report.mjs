@@ -2,6 +2,7 @@ import { cp, mkdir, readFile, readdir, rename, rm, lstat, writeFile } from 'node
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { validateDiagnostics } from './diagnostic.mjs';
+import { publicSummary as functionalPublicSummary } from './functional-report.mjs';
 
 const root = fileURLToPath(new URL('.', import.meta.url));
 const iso = value => value && Number.isFinite(Date.parse(value)) ? new Date(value).toISOString() : null;
@@ -65,7 +66,8 @@ function anonymousFamily(row) {
   return null;
 }
 
-export function publicSummary(source) {
+export function publicSummary(source, ci = null, options = {}) {
+  if (source?.scope === 'required-layers') return functionalPublicSummary(source, ci, options);
   const sampling = publicSampling(source.discovery?.sampling);
   const selected = new Set(['previews', 'invitations', 'viewers'].flatMap(type => sampling?.[type]?.filter(row => row.eligible).map(row => row.url) || []));
   let withheld = 0, identityWithheld = 0;
@@ -122,18 +124,24 @@ export async function exportReport({ dataDir = path.resolve(process.env.DATA_DIR
   if (!Number.isSafeInteger(maxSiteBytes) || maxSiteBytes < 1 || !Number.isSafeInteger(normalScreenshotLimit) || normalScreenshotLimit < 0) throw new Error('게시 용량 설정이 올바르지 않습니다.');
   let source;
   try { source = JSON.parse(await readFile(path.join(dataDir, 'status.json'), 'utf8')); }
-  catch (error) { if (error.code !== 'ENOENT') throw error; source = { status: 'failed', results: [], discovery: { complete: false, errors: ['missing'] } }; }
+  catch (error) { if (error instanceof SyntaxError) throw new Error('점검 결과 JSON 형식이 올바르지 않습니다. 원문은 출력하지 않습니다.'); if (error.code !== 'ENOENT') throw error; source = { status: 'failed', results: [], discovery: { complete: false, errors: ['missing'] } }; }
   if (!source || !Array.isArray(source.results)) throw new Error('점검 결과 JSON 형식이 올바르지 않습니다.');
   let ci;
   try { ci = publicCiState(JSON.parse(await readFile(path.join(dataDir, 'ci-state.json'), 'utf8'))); }
-  catch (error) { if (error.code !== 'ENOENT') throw error; ci = publicCiState({ schemaVersion: 1 }); }
+  catch (error) { if (error instanceof SyntaxError) throw new Error('점검 실행 상태 JSON 형식이 올바르지 않습니다. 원문은 출력하지 않습니다.'); if (error.code !== 'ENOENT') throw error; ci = publicCiState({ schemaVersion: 1 }); }
+  const layered = source.scope === 'required-layers';
   const attemptTime = Date.parse(source.attemptStartedAt || source.startedAt);
   if (scanStartedAt && (!Number.isFinite(attemptTime) || attemptTime < Date.parse(scanStartedAt) - 5000)) {
+    if (layered) {
+      const unverified = layer => layer ? { ...layer, status: 'not-run', cases: (layer.cases || []).map(item => ({ ...item, status: 'not-run' })) } : undefined;
+      source.results = source.results.map(row => ({ ...row, layers: row.layers ? Object.fromEntries(Object.entries(row.layers).map(([key, value]) => [key, unverified(value)])) : undefined }));
+      source.businessVerification = unverified(source.businessVerification);
+    }
     source.status = 'failed'; source.results = source.results.map(row => ({ ...row, status: 'unknown', issues: [...(row.issues || []), { kind: 'monitor' }] }));
     source.discovery = { ...source.discovery, complete: false, errors: [...(source.discovery?.errors || []), 'missing-new-scan'] };
   }
   if (source.status === 'running') { source.status = 'failed'; source.discovery = { ...source.discovery, complete: false, errors: [...(source.discovery?.errors || []), 'partial'] }; }
-  const report = publicSummary(source);
+  const report = publicSummary(source, ci, { workflowUrl, maxSiteBytes });
   report.exportedAt = new Date().toISOString(); report.nextRunAt = null;
   try { const url = new URL(workflowUrl); if (url.origin === 'https://github.com' && !url.search && !url.hash && !url.username && !url.password) report.workflowUrl = url.href; } catch { /* Optional safe workflow link. */ }
   report.scheduleDescription = '매시간 배포 변경을 확인하며, 배포 후 6시간 동안 공개 대표 표본을 점검합니다. 예약 실행은 지연될 수 있습니다.';
@@ -155,7 +163,7 @@ export async function exportReport({ dataDir = path.resolve(process.env.DATA_DIR
     const raw = rawRows.get(row.id);
     if (!raw?.screenshot) continue;
     omitted++;
-    if (!includeScreenshots || row.identityWithheld) continue;
+    if (!includeScreenshots || row.identityWithheld || layered) continue;
     if (row.status === 'pass' && normalCopied >= normalScreenshotLimit) { row.screenshotOmittedReason = '정상 캡처의 대표 게시 수를 초과하여 생략했습니다.'; continue; }
     if (!/^\/screenshots\/run-\d+-[a-f0-9]{6}\/[a-f0-9]{20}\.png$/.test(raw.screenshot) || path.basename(raw.screenshot) !== `${row.id}.png`) { row.screenshotOmittedReason = '검증되지 않은 캡처 경로는 게시하지 않습니다.'; continue; }
     const sourceFile = path.resolve(dataDir, raw.screenshot.slice(1));
@@ -172,7 +180,7 @@ export async function exportReport({ dataDir = path.resolve(process.env.DATA_DIR
       row.screenshotOmittedReason = '캡처 파일 복사·업로드 준비 실패로 생략했습니다. 페이지 검사 판정은 유지됩니다.';
     }
   }
-  report.evidence = { copiedScreenshots: copied, omittedScreenshots: omitted, screenshotsPublic: includeScreenshots === true, maxSiteBytes };
+  report.evidence = { ...report.evidence, copiedScreenshots: copied, omittedScreenshots: omitted, screenshotsPublic: includeScreenshots === true, maxSiteBytes };
   await writeFile(path.join(siteDir, 'status.json.tmp'), JSON.stringify(report, null, 2) + '\n');
   await rename(path.join(siteDir, 'status.json.tmp'), path.join(siteDir, 'status.json'));
   if (await treeBytes(siteDir) > maxSiteBytes) throw new Error('게시 폴더의 용량 제한을 초과했습니다.');

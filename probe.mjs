@@ -20,7 +20,7 @@ export function pixelStats(buffer) {
 }
 
 export function safeMessage(value) {
-  return String(value).replace(/(https?:\/\/[^\s?'"<>]+)\?[^\s'"<>]*/g, '$1?[query omitted]').replace(/(bearer\s+)[\w.+/=-]+/gi, '$1[redacted]').slice(0, 900);
+  return String(value).replace(/(https?:\/\/[^\s?'"<>]+)\?[^\s'"<>]*/g, '$1?[query omitted]').replace(/(bearer\s+)[\w.+/=-]+/gi, '$1[redacted]').replace(/((?:password|passwd|access_token|refresh_token|authorization|client_secret|api[_-]?key|secret|token)\s*[:=]\s*)(?:"[^"]*"|'[^']*'|[^\s,;]+)/gi, '$1[redacted]').slice(0, 900);
 }
 
 export async function launchBrowser() {
@@ -67,9 +67,9 @@ export async function installReadOnlyGuard(context, origins, trace) {
 
 export async function probe(browser, target, config, screenshotDirectory) {
   const start = Date.now();
-  const result = { ...target, status: 'pending', checkedAt: null, durationMs: 0, httpStatus: null, issues: [], checks: [], screenshot: null };
+  const result = { ...target, verificationScope: 'render-only', status: 'pending', checkedAt: null, durationMs: 0, httpStatus: null, issues: [], checks: [], screenshot: null };
   const issue = (kind, message) => { if (result.issues.length < 30) result.issues.push({ kind, message: safeMessage(message) }); };
-  const context = await browser.newContext({ viewport: { width: target.viewport.width, height: target.viewport.height }, deviceScaleFactor: 1, isMobile: !!target.viewport.isMobile, hasTouch: !!target.viewport.isMobile, serviceWorkers: 'block', reducedMotion: 'reduce' });
+  const context = await browser.newContext({ viewport: { width: target.viewport.width, height: target.viewport.height }, deviceScaleFactor: 1, isMobile: !!target.viewport.isMobile, hasTouch: !!target.viewport.isMobile, locale: target.viewport.locale || config.locale || 'ko-KR', serviceWorkers: 'block', reducedMotion: 'reduce', acceptDownloads: false });
   const trace = createDiagnostics(target, config.diagnosticSampling);
   const networkListeners = { request: request => trace.ensure(request), response: response => trace.response(response), requestfinished: request => trace.finished(request), requestfailed: request => trace.fail(request) };
   for (const [event, listener] of Object.entries(networkListeners)) context.on(event, listener);

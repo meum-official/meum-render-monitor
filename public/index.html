@@ -7,7 +7,7 @@
     <meta name="description" content="믐 공개 페이지를 외부 브라우저에서 확인하는 서비스 렌더링 점검 대시보드" />
     <title>MEUM WATCH · 서비스 화면 점검</title>
     <link rel="stylesheet" href="./style.css" />
-    <script src="./app.js" defer></script>
+    <script type="module" src="./app.js"></script>
   </head>
   <body>
     <header class="topbar">
@@ -16,7 +16,7 @@
     </header>
     <main>
       <section class="heading">
-        <div><p class="eyebrow">SERVICE OBSERVABILITY</p><h1>서비스 화면 점검</h1><p class="subtitle">브라우저 자동 점검 • 화면·실행 오류 확인</p></div>
+        <div><p class="eyebrow">SERVICE OBSERVABILITY</p><h1>서비스 검증 현황</h1><p class="subtitle">화면 렌더링 · 화면 이동 · 인증된 업무를 구분해 확인합니다</p></div>
         <button id="run-button" class="primary-button" type="button"><span aria-hidden="true">↻</span> 지금 전체 점검</button>
       </section>
 
@@ -39,6 +39,8 @@
         <article class="metric panel"><p><span class="dot dot-gray"></span> 미확인</p><strong id="unknown-count">—</strong><span>대기 · 점검 실패 · 오래된 결과</span></article>
       </section>
 
+      <section class="verification-section" aria-labelledby="verification-title"><div class="section-heading"><div><h2 id="verification-title">단계별 검증 범위</h2><p>미등록·미실행·차단·적용 제외는 통과로 처리하지 않습니다. 기존 보고서는 렌더링 전용입니다.</p></div></div><div id="layer-summaries" class="layer-summaries"></div></section>
+
       <section class="coverage panel" aria-labelledby="coverage-title"><div class="coverage-heading"><h2 id="coverage-title">점검 범위</h2><span id="coverage-badge" class="badge unknown">확인 전</span></div><p id="coverage-description">공개 목록 수집과 페이지 점검 상태를 확인합니다.</p><p id="coverage-source" class="muted"></p><ul id="discovery-errors" class="discovery-errors" hidden></ul><div class="progress-track" aria-hidden="true"><div id="progress-bar"></div></div><div class="progress-caption"><span id="progress-label">점검 대기</span><span id="progress-percent">—</span></div></section>
 
       <section class="pages-section" aria-labelledby="pages-title">
@@ -48,7 +50,7 @@
       </section>
 
       <section class="history-section panel" aria-labelledby="history-title"><div class="section-heading"><div><p class="eyebrow">RECENT RUNS</p><h2 id="history-title">최근 점검 이력</h2></div><span class="muted">각 점검의 완료 결과</span></div><div id="history"><p class="muted">완료된 점검 이력이 아직 없습니다.</p></div></section>
-      <footer><p><strong>자동 점검의 범위</strong> 공개 페이지의 로딩, 화면 요소, 자바스크립트 오류 등을 정해진 기준으로 확인합니다. 모든 디자인 의도나 로그인·결제·저장 같은 업무 동작의 정확성을 보장하지 않습니다.</p><p>믐 서비스와 분리된 점검 프로그램 <span aria-hidden="true">·</span> 정상은 최근 검사가 통과한 경우에만 표시됩니다.</p></footer>
+      <footer><p><strong>자동 점검의 범위</strong> 등록된 화면·이동·업무 시나리오만 확인합니다. 화면 렌더링 통과는 이동이나 저장·권한·결제 검증을 대신하지 않습니다. 시나리오가 없거나 실행되지 않은 단계는 미확인입니다.</p><p>공개 요약에는 고객 화면 캡처와 인증 정보·요청값·관측 원문을 포함하지 않습니다. 상세 근거는 비공개 로컬 기록에서 확인합니다.</p></footer>
     </main>
     <noscript><div class="alert">이 대시보드는 자바스크립트가 필요합니다. 브라우저에서 자바스크립트를 허용해 주세요.</div></noscript>
   </body>

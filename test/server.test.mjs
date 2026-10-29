@@ -75,6 +75,26 @@ test('fresh state starts unverified and atomic persistence replaces JSON without
   assert.deepEqual(await readdir(path.dirname(filename)), ['fixture.json']);
 });
 
+test('a deployment invalidates completed and resumed public and business passes', () => {
+  const state = monitor.emptyState();
+  state.continuation = true;
+  state.results = [{ checkedAt: new Date().toISOString(), status: 'pass', layers: { render: { required: true, status: 'pass' }, navigation: { required: true, status: 'pass', cases: [{ status: 'pass' }] } } }];
+  state.businessVerification = { status: 'pass', cases: [] };
+  const same = monitor.markDeploymentChanged(state);
+  assert.equal(same, state);
+  assert.equal(state.continuation, false);
+  assert.equal(state.results[0].layers.render.status, 'not-run');
+  assert.equal(state.results[0].layers.navigation.cases[0].status, 'not-run');
+  assert.equal(state.results[0].status, 'unknown');
+  assert.notEqual(state.verification.status, 'pass');
+  assert.ok(Number.isFinite(Date.parse(state.nextRunAt)));
+  // The running scan can finish later and set continuation again. Invalidate
+  // again at that boundary rather than resuming a pre-deployment result.
+  state.continuation = true;
+  monitor.markDeploymentChanged(state);
+  assert.equal(state.continuation, false);
+});
+
 test('status returns actual pending/unknown state, and health identifies the runner', async () => {
   const state = monitor.emptyState();
   state.status = 'running'; state.results = [{ id: 'fixture', status: 'unknown' }];

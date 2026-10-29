@@ -77,7 +77,8 @@ export function decideGate({ previous, fingerprints, errors = [], mode = 'after-
   const deployed = eventName === 'repository_dispatch';
   const manual = eventName === 'workflow_dispatch';
   const errorFingerprint = hash(JSON.stringify(errors));
-  const newFailure = errors.length > 0 && errorFingerprint !== (previous?.errorFingerprint || hash(JSON.stringify(previous?.errors || [])));
+  const previousErrorFingerprint = previous?.errorFingerprint || hash(JSON.stringify(previous?.errors || []));
+  const newFailure = errors.length > 0 && errorFingerprint !== previousErrorFingerprint;
   let watchUntil = previous?.watchUntil || null;
   let reason = 'outside-deploy-window';
   if (first || changed || deployed || (manual && manualMode === 'burst6h') || newFailure) {
@@ -107,12 +108,14 @@ export function invalidateCycle(report, gateState) {
   if (!report || !gateState.resetCycle) return report;
   if (!Array.isArray(report.results)) throw new Error('기존 점검 결과가 손상됐습니다. 새 배포 점검을 시작할 수 없습니다.');
   const message = gateState.errors.length ? '배포 지문을 확인하지 못해 이전 정상 판정을 해제했습니다. 새 브라우저 점검이 필요합니다.' : '새 배포가 감지되어 이전 점검 결과를 재사용하지 않습니다. 다시 점검합니다.';
+  const invalidateLayer = layer => layer ? { ...layer, status: 'not-run', checkedAt: null, cases: (layer.cases || []).map(item => ({ ...item, status: 'not-run', checkedAt: null })) } : undefined;
   return {
     ...report,
     continuation: false,
     status: 'idle',
     completedAt: null,
-    results: report.results.map(result => ({ ...result, status: 'unknown', issues: [...(result.issues || []), { kind: 'deployment', message }] })),
+    results: report.results.map(result => ({ ...result, status: 'unknown', layers: result.layers ? Object.fromEntries(Object.entries(result.layers).map(([name, layer]) => [name, layer.required === false ? layer : invalidateLayer(layer)])) : undefined, issues: [...(result.issues || []), { kind: 'deployment', message }] })),
+    businessVerification: invalidateLayer(report.businessVerification),
     discovery: { ...report.discovery, complete: false },
   };
 }
@@ -166,6 +169,11 @@ async function summarize() {
     `- 표본 검사 범위: ${report?.discovery?.complete === true ? '확인됨' : '미확인 항목 있음'}`,
     '- 전체 전시 전수 검사와 실제 앱 업무 11개의 검증은 포함하지 않습니다.',
     ...(report?.discovery?.sampling ? [`- 표본 선택: ${report.discovery.sampling.selectionId}`, `- 프리뷰 ${report.discovery.sampling.previews?.length || 0} / 초대장 ${report.discovery.sampling.invitations?.length || 0} / 관람 ${report.discovery.sampling.viewers?.length || 0}`] : []),
+    ...['render', 'navigation', 'business'].filter(key => report?.verification?.[key]).map(key => {
+      const info = report.verification[key];
+      const count = status => Number.isSafeInteger(info[status]) ? info[status] : 0;
+      return `- ${key}: 통과 ${count('pass')} / 실패 ${count('fail')} / 차단 ${count('blocked')} / 미등록 ${count('unregistered')} / 미실행 ${count('not-run')}`;
+    }),
     `- 완료 시각: ${report?.completedAt || '완료되지 않음'}`,
     process.env.MONITOR_PAGES_URL ? `- GitHub Pages 대시보드: ${process.env.MONITOR_PAGES_URL}` : '- GitHub Pages 배포가 완료되지 않았습니다. 이번 실행의 검사 로그를 확인해 주세요.', '',
   ].join('\n');
@@ -197,6 +205,11 @@ async function selfTest() {
   assert.equal(invalidated.results[0].status, 'unknown');
   assert.equal(invalidated.discovery.complete, false);
   assert.equal(partial.results[0].status, 'pass');
+  const oldLayered = { ...partial, results: [{ status: 'pass', layers: { render: { required: true, status: 'pass' }, navigation: { required: true, status: 'pass', cases: [{ status: 'pass' }] } } }], businessVerification: { status: 'pass', cases: [{ status: 'pass' }] } };
+  const newLayered = invalidateCycle(oldLayered, changed);
+  assert.equal(newLayered.results[0].layers.render.status, 'not-run');
+  assert.equal(newLayered.results[0].layers.navigation.cases[0].status, 'not-run');
+  assert.equal(newLayered.businessVerification.status, 'not-run');
   assert.equal(invalidateCycle(partial, decideGate({ previous: expired, fingerprints: {}, errors: ['offline'], now })).results[0].status, 'unknown');
   assert.throws(() => decideGate({ previous: {}, fingerprints: {}, now }), /손상/);
   const html = '<script type="module" crossorigin src="/assets/main.abc.js"></script><link rel="stylesheet" href="/assets/main.abc.css"><script type="importmap">{"imports":{}}</script>';
