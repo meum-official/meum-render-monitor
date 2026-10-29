@@ -1,7 +1,8 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { PNG } from 'pngjs';
-import { knownMutatingRead } from './read-only-policy.mjs';
+import { readPolicyDecision } from './read-only-policy.mjs';
+import { createDiagnostics, safeLocation } from './diagnostic.mjs';
 
 export { ruleFor } from './contracts.mjs';
 import { ruleFor, allowedNavigation } from './contracts.mjs';
@@ -34,7 +35,7 @@ export async function launchBrowser() {
   }
 }
 
-export async function installReadOnlyGuard(context, origins) {
+export async function installReadOnlyGuard(context, origins, trace) {
   const blocked = [];
   const requests = new WeakSet();
   const hosts = new Set([...origins.map(value => new URL(value).hostname), 'backend.meum.me']);
@@ -42,7 +43,9 @@ export async function installReadOnlyGuard(context, origins) {
   await context.route('**/*', async route => {
     const request = route.request();
     const read = ['GET', 'HEAD'].includes(request.method());
-    if (read && !knownMutatingRead(request.url())) return route.continue();
+    const decision = readPolicyDecision(request.url());
+    if (read && !decision.blocked) return route.continue();
+    trace?.block(request, read ? 'known-mutating-read' : 'mutating-method', read ? decision.code : 'mutating-method');
     requests.add(request);
     if (read) counts.blockedMutatingReads++;
     if (hosts.has(new URL(request.url()).hostname)) {
@@ -52,6 +55,7 @@ export async function installReadOnlyGuard(context, origins) {
     return route.abort('blockedbyclient');
   });
   await context.routeWebSocket('**/*', socket => {
+    trace?.socket(socket.url());
     if (hosts.has(new URL(socket.url()).hostname)) {
       counts.blockedServiceSockets++;
       if (blocked.length < 30) blocked.push('공개 읽기 점검에서 서비스의 WebSocket 연결을 차단했습니다.');
@@ -66,7 +70,10 @@ export async function probe(browser, target, config, screenshotDirectory) {
   const result = { ...target, status: 'pending', checkedAt: null, durationMs: 0, httpStatus: null, issues: [], checks: [], screenshot: null };
   const issue = (kind, message) => { if (result.issues.length < 30) result.issues.push({ kind, message: safeMessage(message) }); };
   const context = await browser.newContext({ viewport: { width: target.viewport.width, height: target.viewport.height }, deviceScaleFactor: 1, isMobile: !!target.viewport.isMobile, hasTouch: !!target.viewport.isMobile, serviceWorkers: 'block', reducedMotion: 'reduce' });
-  const guard = await installReadOnlyGuard(context, config.origins);
+  const trace = createDiagnostics(target, config.diagnosticSampling);
+  const networkListeners = { request: request => trace.ensure(request), response: response => trace.response(response), requestfinished: request => trace.finished(request), requestfailed: request => trace.fail(request) };
+  for (const [event, listener] of Object.entries(networkListeners)) context.on(event, listener);
+  const guard = await installReadOnlyGuard(context, config.origins, trace);
   const page = await context.newPage();
   let pixelsAvailable = true;
   const saveCapture = async buffer => {
@@ -85,29 +92,24 @@ export async function probe(browser, target, config, screenshotDirectory) {
   let fatalEvent;
   const fatal = new Promise(resolve => { fatalEvent = resolve; });
   const rule = { selectors: [], loading: [], errors: [], unknownSelectors: [], ...(target.rule || ruleFor(target.url)) };
-  const serviceHosts = new Set([...config.origins.map(x => new URL(x).hostname), 'backend.meum.me']);
-  const critical = (request) => {
-    const type = request.resourceType();
-    const u = new URL(request.url());
-    return serviceHosts.has(u.hostname) && (['document', 'script', 'stylesheet'].includes(type) || (['xhr', 'fetch'].includes(type) && /\/(room|rooms|boards|archive|oneday|creator|gallery|public)(\/|\?|$)/.test(u.pathname)));
-  };
+  const timeout = rule.canvas ? Math.max(config.renderTimeoutMs, 90000) : config.renderTimeoutMs;
+  const readiness = { state: 'unverified', selectors: rule.selectors, requiredGlobal: rule.requiredGlobal || null, loading: rule.loading, errorSelectors: rule.errors, elapsedMs: 0 };
   page.on('pageerror', e => { issue('javascript', e.message); fatalEvent(); });
   page.on('crash', () => { issue('browser-crash', '브라우저 탭이 종료됐습니다.'); fatalEvent(); });
-  page.on('requestfailed', r => { if (!guard.requests.has(r) && critical(r) && !/ERR_ABORTED/.test(r.failure()?.errorText || '')) issue('network', `${r.failure()?.errorText}: ${r.url()}`); });
-  page.on('response', r => { if (r.status() >= 400 && critical(r.request())) issue('http-resource', `HTTP ${r.status()}: ${r.url()}`); });
   try {
     const response = await page.goto(target.url, { waitUntil: 'domcontentloaded', timeout: config.navigationTimeoutMs });
     result.httpStatus = response?.status() ?? null;
     if (!response || !response.ok()) issue('http', `페이지 응답: ${result.httpStatus ?? '없음'}`);
     result.finalUrl = page.url();
     if (!config.origins.includes(new URL(result.finalUrl).origin)) issue('redirect', '요청한 서비스 밖으로 이동했습니다.');
-    const timeout = rule.canvas ? Math.max(config.renderTimeoutMs, 90000) : config.renderTimeoutMs;
+    const readyStart = Date.now();
     try {
       await Promise.race([fatal, page.waitForFunction(({ selectors, loading, errors, unknownSelectors, requiredGlobal }) => {
         const visible = el => { const r = el.getBoundingClientRect(); const s = getComputedStyle(el); return r.width > 0 && r.height > 0 && s.display !== 'none' && s.visibility !== 'hidden' && Number(s.opacity) > 0; };
         return [...errors, ...unknownSelectors].some(s => [...document.querySelectorAll(s)].some(visible)) || (selectors.every(s => [...document.querySelectorAll(s)].some(visible)) && loading.every(s => ![...document.querySelectorAll(s)].some(visible)) && (!requiredGlobal || !!window[requiredGlobal]) && (document.body?.innerText.trim().length > 30 || document.querySelector('canvas')));
       }, rule, { timeout })]);
     } catch { issue('render-timeout', `화면 준비 조건을 ${timeout / 1000}초 안에 충족하지 못했습니다.`); }
+    readiness.elapsedMs = Date.now() - readyStart;
     await page.waitForTimeout(config.settleMs);
     result.finalUrl = page.url();
     if (!allowedNavigation(target.url, result.finalUrl)) issue('redirect', '요청한 페이지와 다른 화면으로 이동했습니다.');
@@ -119,27 +121,27 @@ export async function probe(browser, target, config, screenshotDirectory) {
         visibleElements: [...app.querySelectorAll('h1,h2,p,a,button,input,img,canvas')].filter(visible).length,
         missing: selectors.filter(s => ![...document.querySelectorAll(s)].some(visible)),
         loading: loading.filter(s => [...document.querySelectorAll(s)].some(visible)),
-        errors: errors.flatMap(s => [...document.querySelectorAll(s)].filter(visible).map(e => e.textContent.trim().slice(0, 200))),
+        errors: errors.filter(s => [...document.querySelectorAll(s)].some(visible)),
         brokenImages: [...document.images].filter(el => { const r = el.getBoundingClientRect(); return visible(el) && r.top < innerHeight && r.bottom > 0 && el.complete && !el.naturalWidth; }).map(el => el.currentSrc || el.src).slice(0, 5),
         accessGate: unknownSelectors.some(s => [...document.querySelectorAll(s)].some(visible)),
         globalReady: !requiredGlobal || !!window[requiredGlobal],
         backgrounds: [...app.querySelectorAll('*')].filter(el => { const r = el.getBoundingClientRect(); return visible(el) && r.top < innerHeight && r.bottom > 0; }).flatMap(el => [...getComputedStyle(el).backgroundImage.matchAll(/url\(["']?(.+?)["']?\)/g)].map(m => m[1])).slice(0, 12),
-        title: document.title
       };
     }, rule);
-    result.title = dom.title;
+    readiness.state = dom.accessGate || rule.unsupported ? 'unverified' : !dom.missing.length && !dom.loading.length && !dom.errors.length && dom.globalReady ? 'ready' : 'failed';
+    readiness.observed = { missingSelectors: dom.missing, visibleLoading: dom.loading, visibleErrorSelectors: dom.errors, globalReady: dom.globalReady, accessGate: dom.accessGate };
     if (dom.accessGate) result.issues = result.issues.filter(x => x.kind !== 'render-timeout');
     if (dom.missing.length && !dom.accessGate) issue('required-content', `필수 화면 요소 없음: ${dom.missing.join(', ')}`);
     if (!dom.globalReady && !dom.accessGate) issue('3d-not-ready', '3D 엔진의 준비 완료를 확인하지 못했습니다.');
     if (dom.loading.length && !dom.accessGate) issue('loading', `로딩이 끝나지 않았습니다: ${dom.loading.join(', ')}`);
     for (const message of dom.errors) issue('error-screen', message);
     if (dom.visibleElements < (rule.canvas ? 1 : 2) || (!rule.canvas && dom.textLength < 30)) issue('empty-dom', `본문이 비어 있습니다 (텍스트 ${dom.textLength}자, 화면 요소 ${dom.visibleElements}개).`);
-    for (const url of dom.brokenImages) issue('broken-image', url);
+    for (const url of dom.brokenImages) { trace.visibleMedia(url); issue('broken-image', safeLocation(url, { sampling: config.diagnosticSampling }).path); }
     const brokenBackgrounds = await page.evaluate(async urls => (await Promise.all([...new Set(urls)].map(url => new Promise(resolve => {
       const img = new Image(); const timeout = setTimeout(() => resolve(url), 3000);
       img.onload = () => { clearTimeout(timeout); resolve(null); }; img.onerror = () => { clearTimeout(timeout); resolve(url); }; img.src = url;
     })))).filter(Boolean), dom.backgrounds);
-    for (const url of brokenBackgrounds) issue('broken-background', url);
+    for (const url of brokenBackgrounds) { trace.visibleMedia(url); issue('broken-background', safeLocation(url, { sampling: config.diagnosticSampling }).path); }
     try {
       const buffer = await page.screenshot({ fullPage: false, timeout: 15000 });
       const pixels = pixelStats(buffer);
@@ -178,7 +180,7 @@ export async function probe(browser, target, config, screenshotDirectory) {
         const isViewer = raw => { const u = new URL(raw); return config.origins.includes(u.origin) && (u.pathname === '/meum-lite-viewer' || /\/viewer(?:\/|$)/.test(u.pathname)); };
         // Capture the public entry URL, then render it separately with a fresh guest context.
         await context.route('**/*', async route => {
-          if (route.request().isNavigationRequest() && isViewer(route.request().url())) { viewerUrl = route.request().url(); await route.abort('aborted'); }
+          if (route.request().isNavigationRequest() && isViewer(route.request().url())) { viewerUrl = route.request().url(); trace.block(route.request(), 'entry-navigation-not-executed'); await route.abort('aborted'); }
           else await route.fallback();
         });
         try {
@@ -201,9 +203,16 @@ export async function probe(browser, target, config, screenshotDirectory) {
     if (config.captureScreenshots === true) try { await saveCapture(await page.screenshot({ timeout: 5000 })); }
     catch { result.screenshotOmittedReason = '오류 화면의 캡처를 얻지 못했습니다.'; }
   } finally {
+    for (const [event, listener] of Object.entries(networkListeners)) context.off(event, listener);
+    if (result.finalUrl) { result.finalLocation = safeLocation(result.finalUrl, { sampling: config.diagnosticSampling }); delete result.finalUrl; }
     result.policy = { readOnly: true, ...guard.counts };
-    for (const message of guard.blocked) issue('read-only-block', message);
-    if (guard.blocked.length && result.status === 'pass') result.status = 'unknown';
+    result.diagnostics = trace.finish(result.issues, readiness, { navigationMs: config.navigationTimeoutMs, readinessMs: timeout });
+    if (result.diagnostics.readiness.state === 'blocked') for (const check of result.checks) if (check.name === '필수 화면 요소') { check.passed = null; check.detail = '필수 사전 요청을 안전 정책으로 실행하지 못했습니다.'; }
+    for (const group of result.diagnostics.groups) {
+      if (group.cause === 'http-resource' && group.severity === 'failure') issue('http-resource', '등록된 필수 리소스의 오류 응답입니다. 요청별 상태와 시각을 확인하세요.');
+      if (group.cause === 'policy-block' && group.severity !== 'warning') issue('read-only-block', '안전 정책 때문에 실행하지 않은 요청입니다. 요청별 차단 사유를 확인하세요.');
+    }
+    result.status = result.diagnostics.groups.some(group => group.severity === 'failure') ? 'fail' : !pixelsAvailable || rule.unsupported || result.diagnostics.groups.some(group => ['blocked', 'unknown'].includes(group.severity)) || readiness.state !== 'ready' ? 'unknown' : 'pass';
     result.checkedAt = new Date().toISOString(); result.durationMs = Date.now() - start;
     await context.close().catch(() => {});
   }

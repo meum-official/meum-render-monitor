@@ -30,6 +30,7 @@ concurrency:
 
 jobs:
   render:
+    if: vars.MONITOR_DIAGNOSTIC_HOLD != 'true' || (github.event_name == 'workflow_dispatch' && github.run_attempt == 1)
     runs-on: ubuntu-latest
     timeout-minutes: 70
     environment:
@@ -40,6 +41,7 @@ jobs:
       DATA_DIR: ${{ github.workspace }}/data
       MONITOR_MODE: ${{ vars.MONITOR_MODE || 'after-deploy' }}
       MONITOR_MANUAL_MODE: ${{ inputs.run_mode || 'once' }}
+      MONITOR_DIAGNOSTIC_HOLD: ${{ vars.MONITOR_DIAGNOSTIC_HOLD }}
       MONITOR_WORKFLOW_URL: ${{ github.server_url }}/${{ github.repository }}/actions/workflows/render-check.yml
       SCAN_MAX_MINUTES: ${{ inputs.scan_minutes || '55' }}
       RETAINED_RUNS: '1'

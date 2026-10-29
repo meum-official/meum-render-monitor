@@ -61,7 +61,7 @@ export async function runScan(config, state, persist, { stopAt = Infinity, signa
     const inventory = await discover(config, fetch, { sampling: previous?.discovery?.sampling });
     state.discovery = { ...inventory, pages: undefined, totalTargets: inventory.pages.length * config.viewports.length };
     state.results = inventory.pages.flatMap(page => config.viewports.map(viewport => ({ ...page, id: createHash('sha256').update(page.url + viewport.name).digest('hex').slice(0, 20), viewport, name: `${page.name}${config.viewports.length > 1 ? ` · ${viewport.name}` : ''}`, status: 'pending', checkedAt: null, issues: [], checks: [] })));
-    const definitions = await Promise.all(['contracts.mjs', 'probe.mjs', 'discovery.mjs', 'sampling.mjs', 'read-only-policy.mjs', 'server.mjs', 'package-lock.json'].map(name => readFile(path.join(ROOT, name), 'utf8')));
+    const definitions = await Promise.all(['contracts.mjs', 'probe.mjs', 'diagnostic.mjs', 'resource-contracts.mjs', 'discovery.mjs', 'sampling.mjs', 'read-only-policy.mjs', 'server.mjs', 'package-lock.json'].map(name => readFile(path.join(ROOT, name), 'utf8')));
     const signature = createHash('sha256').update(JSON.stringify([config, state.results.map(x => x.id).sort(), definitions])).digest('hex');
     if (previous?.inventorySignature === signature) {
       const known = new Map(previous.results.map(x => [x.id, x]));
@@ -93,7 +93,7 @@ export async function runScan(config, state, persist, { stopAt = Infinity, signa
         for (const row of state.results.slice(index)) if (!row.checkedAt) { row.status = 'unknown'; row.issues = [{ kind: 'not-checked', message: '이번 실행에서 브라우저 검사를 마치지 못했습니다. 다음 실행에서 이어갑니다.' }]; }
         break;
       }
-      state.results[index] = await probe(browser, state.results[index], config, path.join(DATA, 'screenshots', state.runId));
+      state.results[index] = await probe(browser, state.results[index], { ...config, diagnosticSampling: inventory.sampling }, path.join(DATA, 'screenshots', state.runId));
       for (const page of config.sampling?.enabled ? [] : state.results[index].discoveredPages || []) {
         for (const viewport of config.viewports) {
           const id = createHash('sha256').update(page.url + viewport.name).digest('hex').slice(0, 20);

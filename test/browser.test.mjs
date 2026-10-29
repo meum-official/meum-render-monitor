@@ -5,6 +5,7 @@ import { mkdtemp, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { launchBrowser, probe } from '../probe.mjs';
+import { safeLocation } from '../diagnostic.mjs';
 
 const enabled = process.env.RUN_BROWSER_TESTS === '1';
 const rule = { selectors: ['main h1'], loading: [], errors: [] };
@@ -134,7 +135,7 @@ describe('real Chromium render checks using only local HTTP fixtures', { skip: !
 
   it('fails an unexpected same-origin redirect even when its destination renders', async () => {
     const result = await check('/redirect');
-    assert.equal(result.finalUrl, `${origin}/healthy`);
+    assert.deepEqual(result.finalLocation, safeLocation(`${origin}/healthy`));
     assert.equal(result.status, 'fail');
     assert.ok(hasIssue(result, 'redirect'));
   });
@@ -173,7 +174,7 @@ describe('real Chromium render checks using only local HTTP fixtures', { skip: !
       selectors: ['.plan-select .pricing-hero__title, .international-pricing > header h1', '.plan-select #group-plans-title, .international-pricing .plan-grid > article'], loading: [], errors: [],
     });
     assert.equal(result.status, 'pass', JSON.stringify(result.issues));
-    assert.equal(result.finalUrl, `${origin}/en/pricing`);
+    assert.deepEqual(result.finalLocation, safeLocation(`${origin}/en/pricing`));
   });
 
   it('still discovers the public viewer when a rendered preview has an asset error', async () => {

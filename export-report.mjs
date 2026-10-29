@@ -1,6 +1,7 @@
 import { cp, mkdir, readFile, readdir, rename, rm, lstat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { validateDiagnostics } from './diagnostic.mjs';
 
 const root = fileURLToPath(new URL('.', import.meta.url));
 const iso = value => value && Number.isFinite(Date.parse(value)) ? new Date(value).toISOString() : null;
@@ -77,6 +78,18 @@ export function publicSummary(source) {
     if (family) identityWithheld++;
     results.push({ id: row.id, name: `${group} · ${row.id.slice(0, 8)}`, group, url, ...(family ? { publicRouteFamily: family, identityWithheld: true, identityWithheldReason: '공개 대표 경로의 식별자는 비공개로 보관하며 검사 판정은 유지합니다.' } : {}), status: ['pass', 'fail'].includes(row.status) && iso(row.checkedAt) ? row.status : row.status === 'pending' ? 'pending' : 'unknown', checkedAt: iso(row.checkedAt), durationMs: count(row.durationMs), httpStatus: Number.isSafeInteger(row.httpStatus) && row.httpStatus >= 100 && row.httpStatus <= 599 ? row.httpStatus : null, issues: (Array.isArray(row.issues) ? row.issues : []).slice(0, 30).map(issue => ({ kind: Object.hasOwn(issueLabels, issue?.kind) ? issue.kind : 'monitor', message: issueLabels[issue?.kind] || '점검 상세 내용은 비공개 로컬 보고서에 보관합니다.' })), checks: (Array.isArray(row.checks) ? row.checks : []).filter(check => checkNames.has(check.name)).map(check => ({ name: check.name, passed: check.passed === true ? true : check.passed === false ? false : null })), screenshot: null, screenshotOmittedReason: '공개 보고서에는 캡처와 고객 제목·관측 원문을 기본으로 게시하지 않습니다.' });
     if (row.policy?.readOnly === true) results.at(-1).policy = { readOnly: true, ...Object.fromEntries(['blockedServiceWrites', 'blockedServiceSockets', 'blockedExternalWrites', 'blockedExternalSockets', 'blockedMutatingReads'].map(key => [key, count(row.policy[key])])) };
+    if (row.diagnostics) {
+      const output = results.at(-1);
+      try {
+        const diagnostics = validateDiagnostics(row.diagnostics, { sampling, rowId: row.id, targetUrl: row.url });
+        if (!diagnostics || diagnostics.schemaVersion !== 1) throw new Error('Invalid diagnostic schema');
+        output.diagnostics = diagnostics;
+        if (diagnostics.droppedRequests > 0 && output.status === 'pass') output.status = 'unknown';
+      } catch {
+        if (output.status === 'pass') output.status = 'unknown';
+        output.issues.push({ kind: 'monitor', message: '요청 진단 형식을 재검증하지 못해 현재 근거가 미확인입니다.' });
+      }
+    }
   }
   const errors = (Array.isArray(source.discovery?.errors) ? source.discovery.errors : []).map(() => '공개 목록 수집 또는 점검을 완료하지 못했습니다. 실행 로그를 확인하세요.');
   if (!sampling) errors.push('대표 표본 선택 메타가 없어 점검 범위를 확인할 수 없습니다.');
@@ -124,6 +137,7 @@ export async function exportReport({ dataDir = path.resolve(process.env.DATA_DIR
   report.exportedAt = new Date().toISOString(); report.nextRunAt = null;
   try { const url = new URL(workflowUrl); if (url.origin === 'https://github.com' && !url.search && !url.hash && !url.username && !url.password) report.workflowUrl = url.href; } catch { /* Optional safe workflow link. */ }
   report.scheduleDescription = '매시간 배포 변경을 확인하며, 배포 후 6시간 동안 공개 대표 표본을 점검합니다. 예약 실행은 지연될 수 있습니다.';
+  if (process.env.MONITOR_DIAGNOSTIC_HOLD === 'true') { report.automaticChecksPaused = true; report.scheduleDescription = '자동 점검은 진단을 위해 일시 중지했습니다. 이 보고서는 수동 진단 실행 결과이며 예약 점검은 재개 전까지 실행되지 않습니다.'; }
   // The checked absolute destination is a generated site, never a parent of source/data.
   await rm(siteDir, { recursive: true, force: true });
   await mkdir(siteDir, { recursive: true });

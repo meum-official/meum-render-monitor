@@ -30,7 +30,7 @@ async function fixture(t, { published = false } = {}) {
   t.after(async () => {
     const relative = path.relative(dataRoot, path.resolve(directory));
     assert.ok(relative && !relative.startsWith('..') && !path.isAbsolute(relative));
-    await rm(directory, { recursive: true, force: true });
+    await rm(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
   });
   const bare = path.join(directory, 'remote.git'), seed = path.join(directory, 'checkout'), site = path.join(seed, 'site');
   await mkdir(seed);

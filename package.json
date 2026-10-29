@@ -10,7 +10,7 @@
     "start": "node --env-file-if-exists=.env server.mjs",
     "scan": "node --env-file-if-exists=.env server.mjs --once",
     "test": "node --test test/*.test.mjs",
-    "test:browser": "node --env-file=test/browser.env --test --test-concurrency=1 test/browser.test.mjs test/capture.test.mjs test/sample-scan.test.mjs test/read-only-get.test.mjs",
+    "test:browser": "node --env-file=test/browser.env --test --test-concurrency=1 test/browser.test.mjs test/capture.test.mjs test/sample-scan.test.mjs test/read-only-get.test.mjs test/diagnostic-report.test.mjs test/diagnostic.test.mjs",
     "install:browser": "playwright install chromium"
   },
   "dependencies": {

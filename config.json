@@ -12,6 +12,7 @@
     { "url": "https://meum.me/exhibition", "name": "공개 전시 목록" },
     { "url": "https://meum.me/plan", "name": "요금제" },
     { "url": "https://meum.me/login", "name": "로그인" },
+    { "url": "https://meum.me/webtoon", "name": "웹툰" },
     { "url": "https://meum.me/register", "name": "회원가입" },
     { "url": "https://archive.meum.me/", "name": "아카이브 홈" }
   ],

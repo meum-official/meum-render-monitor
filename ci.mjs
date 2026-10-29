@@ -117,7 +117,14 @@ export function invalidateCycle(report, gateState) {
   };
 }
 
+export const suppressAutomaticRun = (hold, eventName, attempt = '1') => hold === 'true' && (eventName !== 'workflow_dispatch' || String(attempt) !== '1');
+
 async function gate() {
+  if (suppressAutomaticRun(process.env.MONITOR_DIAGNOSTIC_HOLD, process.env.GITHUB_EVENT_NAME, process.env.GITHUB_RUN_ATTEMPT)) {
+    if (process.env.GITHUB_OUTPUT) await appendFile(process.env.GITHUB_OUTPUT, 'should_run=false\nreason=diagnostic-hold\nwatch_until=\n');
+    console.log(JSON.stringify({ shouldRun: false, reason: 'diagnostic-hold' }));
+    return;
+  }
   if (process.env.CI === 'true' && !['none', 'restored'].includes(process.env.MONITOR_STATE_RESTORE)) throw new Error('이전 상태 복원 결과가 없습니다. 상태를 초기화하지 않고 중단합니다.');
   const previous = await readJson(stateFile, true);
   if (process.env.MONITOR_STATE_RESTORE === 'restored' && !previous) throw new Error('복원된 캐시에 ci-state.json이 없습니다.');
@@ -210,7 +217,11 @@ async function selfTest() {
   assert.equal(repeated.shouldRun, false, 'unchanged outage must not reopen the six-hour window indefinitely');
   const publicCheckpoint = { ...outage, errors: undefined, watchUntil: new Date(now - 1).toISOString() };
   assert.equal(decideGate({ previous: publicCheckpoint, fingerprints: {}, errors: ['offline'], now }).shouldRun, false, 'redacting raw errors must preserve the outage transition hash');
-  console.log('CI self-check passed: execution window, deployment detection, manual/dispatch modes, corrupt state, content fingerprint, continuation invalidation and stale pass removal.');
+  for (const event of ['schedule', 'repository_dispatch', 'push', undefined]) assert.equal(suppressAutomaticRun('true', event), true);
+  assert.equal(suppressAutomaticRun('true', 'workflow_dispatch'), false);
+  assert.equal(suppressAutomaticRun('true', 'workflow_dispatch', '2'), true);
+  assert.equal(suppressAutomaticRun('false', 'schedule'), false);
+  console.log('CI self-check passed: execution window, deployment detection, manual/dispatch modes, corrupt state, content fingerprint, continuation invalidation, stale pass removal and automatic diagnostic hold.');
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
