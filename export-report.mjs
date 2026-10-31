@@ -63,7 +63,11 @@ function anonymousFamily(row) {
   if (row.url === null && row.identityWithheld === true && known.includes(row.publicRouteFamily)) return row.publicRouteFamily;
   try {
     const url = new URL(row.url);
-    if (url.search || url.hash || url.username || url.password) return null;
+    if (url.hash || url.username || url.password) return null;
+    // Published archive owner links carry an owner ID in ?i=. Keep only the
+    // anonymous route family; neither the nickname nor ID enters the report.
+    if (url.origin === 'https://archive.meum.me' && /^\/archive\/[^/]+\/?$/.test(url.pathname) && url.searchParams.size === 1 && /^[1-9]\d*$/.test(url.searchParams.get('i') || '')) return 'archive-owner';
+    if (url.search) return null;
     if (url.origin === 'https://meum.me' && /^\/creator\/ws_[a-zA-Z0-9_-]+\/?$/.test(url.pathname)) return 'creator';
     if (url.origin === 'https://meum.me' && /^\/webtoon\/[^/]+\/?$/.test(url.pathname)) return 'webtoon';
     if (url.origin === 'https://archive.meum.me' && /^\/archive\/[^/]+\/?$/.test(url.pathname)) return 'archive-owner';

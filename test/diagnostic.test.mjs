@@ -213,3 +213,15 @@ test('archive home owners dependency stays blocked without becoming a false serv
   assert.ok(actualFailure.finish(symptoms, ready(), limits).groups.some(group => group.cause === 'http-resource' && group.severity === 'failure'));
   assert.ok(blocked.finish([...symptoms, { kind: 'javascript', message: 'independent defect' }], ready(), limits).groups.some(group => group.cause === 'javascript' && group.severity === 'failure'));
 });
+
+test('archive owner bootstrap remains blocked without hiding real failures', () => {
+  const archive = { id, url: 'https://archive.meum.me/archive/synthetic?i=17' };
+  for (const path of ['/api/archive/owners/17', '/api/archive/owners', '/api/archive/rooms?ownerId=17']) {
+    const req = request('https://backend.meum.me' + path);
+    const symptoms = [{ kind: 'required-content' }, { kind: 'error-screen' }];
+    const blocked = createDiagnostics(archive); blocked.block(req, 'unreviewed-request');
+    assert.equal(blocked.finish(symptoms, ready(), limits).groups.some(g => g.severity === 'failure'), false);
+    const failed = createDiagnostics(archive); finishRequest(failed, req, 500);
+    assert.equal(failed.finish(symptoms, ready(), limits).groups.some(g => g.cause === 'http-resource' && g.severity === 'failure'), true);
+  }
+});

@@ -47,6 +47,11 @@ export function resourceRole({ url, method = 'GET', resourceType, targetUrl, sta
   // fetchArchiveOwnersPage (GET /api/archive/owners). A denied dependency
   // prevents both the result status and list; this role grants no permission.
   if (read && path === '/api/archive/owners' && target.hostname === 'archive.meum.me' && ['/', '/archive'].includes(page)) return result('essential', 'archive-owners');
+  // archive pages/archive/[nickname].vue awaits findArchiveOwner before rooms.
+  // Both the exact-ID lookup and nickname fallback are required prerequisites.
+  if (read && target.hostname === 'archive.meum.me' && /^\/archive\/[^/]+$/.test(page) && (path === '/api/archive/owners' || /^\/api\/archive\/owners\/[1-9]\d*$/.test(path))) return result('essential', 'archive-owners');
+  // fetchArchiveRoomsPage is then awaited to populate the owner's index.
+  if (read && path === '/api/archive/rooms' && target.hostname === 'archive.meum.me' && /^\/archive\/[^/]+$/.test(page)) return result('essential', 'archive-room');
 
   // MeumLiteViewerEntry.vue419-447: exact-ID lifecycle preflight enables Unity.
   if (read && /^\/api\/rooms\/[1-9]\d*\/viewer-entry$/.test(path) && normalViewer) return result('essential', 'viewer-entry-preflight');

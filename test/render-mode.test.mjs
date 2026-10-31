@@ -77,3 +77,16 @@ test('a network exception after a policy-blocked prerequisite is uncertain; an i
     assert.equal(diagnostics.groups.find(group => group.cause === 'javascript').severity, expected);
   }
 });
+
+test('archive owner query links retain anonymous results without publishing identities', () => {
+  const row = { id: '1'.repeat(20), url: 'https://archive.meum.me/archive/private-nickname?i=987654321', status: 'fail', checkedAt: new Date().toISOString(), checks: [], issues: [] };
+  const report = publicSummary({ renderOnly: true, results: [row], discovery: {} });
+  assert.equal(report.results.length, 1);
+  assert.equal(report.results[0].status, 'fail');
+  assert.equal(report.results[0].url, null);
+  assert.equal(report.results[0].publicRouteFamily, 'archive-owner');
+  assert.doesNotMatch(JSON.stringify(report), /private-nickname|987654321/);
+  for (const query of ['?i=1&token=secret', '?i=1&i=2', '?i=private-email%40example.invalid', '?token=secret']) {
+    assert.equal(publicSummary({ results: [{ ...row, url: 'https://archive.meum.me/archive/private-nickname' + query }], discovery: {} }).results.length, 0);
+  }
+});
