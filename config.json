@@ -13,7 +13,7 @@
     "https://meum.me/home",
     "https://archive.meum.me/"
   ],
-  "followViewerEntries": true,
+  "followViewerEntries": false,
   "sampling": {
     "enabled": true,
     "previews": 3,
@@ -68,7 +68,7 @@
     }
   ],
   "locale": "ko-KR",
-  "functionalNavigation": true,
+  "functionalNavigation": false,
   "journeyLanguage": "ko",
   "journeyTimeoutMs": 10000,
   "navigationTimeoutMs": 30000,
@@ -77,5 +77,7 @@
   "betweenPagesMs": 800,
   "maxSitemaps": 300,
   "maxRoomPages": 1000,
-  "retainedRuns": 7
+  "retainedRuns": 7,
+  "renderOnly": true,
+  "viewerRenderTimeoutMs": 180000
 }

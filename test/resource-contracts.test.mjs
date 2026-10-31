@@ -33,6 +33,19 @@ test('normal viewer prerequisites use exact methods/paths and do not grant permi
   expect(classify('/api/rooms/getDataJson', { targetUrl: main + '/home' }), 'unknown', 'unclassified');
 });
 
+test('best-effort analytics are optional only at exact observed collectors and never grant write permission', () => {
+  expect(resourceRole({ url: 'https://www.google.co.kr/ads/ga-audiences?x=1', targetUrl: main + '/login', method: 'GET', resourceType: 'image' }), 'optional', 'telemetry');
+  for (const patch of [{ method: 'POST' }, { resourceType: 'fetch' }, { url: 'https://www.google.co.kr/ads/other' }, { url: 'https://www.google.co.kr.evil.example/ads/ga-audiences' }]) expect(resourceRole({ url: 'https://www.google.co.kr/ads/ga-audiences', targetUrl: main + '/login', method: 'GET', resourceType: 'image', ...patch }), 'unknown', 'unclassified');
+  for (const origin of ['https://backend.meum.me', 'https://www.google.com', 'https://analytics.google.com', 'https://stats.g.doubleclick.net']) {
+    const path = origin === api ? '/analytics/ingest' : '/g/collect';
+    for (const type of ['fetch', 'xhr', 'other', 'ping']) expect(resourceRole({ url: origin + path + '?token=SECRET', targetUrl: main + '/home', method: 'POST', resourceType: type, status: 502 }), 'optional', 'telemetry');
+    for (const patch of [{ method: 'GET' }, { method: 'DELETE' }, { resourceType: 'script' }, { url: origin + path + '-extra' }, { url: origin + '/oauth' }]) expect(resourceRole({ url: origin + path, targetUrl: main + '/home', method: 'POST', resourceType: 'fetch', ...patch }), 'unknown', 'unclassified');
+  }
+  expect(resourceRole({ url: 'https://www.google.com.evil.example/g/collect', targetUrl: main + '/home', method: 'POST', resourceType: 'fetch' }), 'unknown', 'unclassified');
+  expect(resourceRole({ url: 'http://127.0.0.1:9123/analytics/ingest', targetUrl: 'http://127.0.0.1:9123/home', method: 'POST', resourceType: 'fetch' }), 'optional', 'telemetry');
+  expect(resourceRole({ url: 'http://127.0.0.1:9999/analytics/ingest', targetUrl: 'http://127.0.0.1:9123/home', method: 'POST', resourceType: 'fetch' }), 'unknown', 'unclassified');
+});
+
 test('same detail endpoint is required on preview/invitation, optional on viewer and unknown elsewhere', () => {
   for (const path of ['/exhibition/preview/4348', '/exhibition/4348', '/exhibition/invitation/4Q8xmY']) {
     expect(classify('/user/room/detail?room_id=4348', { targetUrl: main + path }), 'essential', 'preview-detail');

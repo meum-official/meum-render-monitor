@@ -45,6 +45,7 @@ jobs:
       MONITOR_WORKFLOW_URL: ${{ github.server_url }}/${{ github.repository }}/actions/workflows/render-check.yml
       SCAN_MAX_MINUTES: ${{ inputs.scan_minutes || '55' }}
       RETAINED_RUNS: '1'
+      MONITOR_RENDER_ONLY: '1'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

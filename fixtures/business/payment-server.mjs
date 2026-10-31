@@ -1,3 +1,4 @@
+import { productSourceRoot, reviewedSourceFile } from '../../product-source.mjs';
 // Reuse the existing actual-component QA server; every payment/DB operation stays in its memory fixture.
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import path from 'node:path';
@@ -6,10 +7,11 @@ import { createHash } from 'node:crypto';
 import { createServer } from 'node:net';
 import { BUSINESS_SOURCE_FILES } from '../../business-contracts.mjs';
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
+const root = productSourceRoot(true);
 const hash = value => createHash('sha256').update(value).digest('hex');
 
 export async function createPaymentBusinessFixture(directory) {
+  productSourceRoot();
   const { createTrialUpgradeQaServer } = await import(pathToFileURL(path.join(root, '8301_front-end/scripts/test-trial-upgrade-ui.mjs')).href);
   // Its existing CSP embeds the configured port, so choose a free port before constructing Vite.
   const reservation = createServer();
@@ -43,7 +45,7 @@ export const injectQuery=(url,query)=>url+(url.includes('?')?'&':'?')+query;
     await server.listen();
     const origin = `http://127.0.0.1:${server.httpServer.address().port}`;
     const sourceProof = {};
-    for (const id of ['payment-component-server', 'payment-component-fixtures', 'payment-component', 'business-payment-server']) sourceProof[id] = hash(await readFile(path.join(root, BUSINESS_SOURCE_FILES[id])));
+    for (const id of ['payment-component-server', 'payment-component-fixtures', 'payment-component', 'business-payment-server']) sourceProof[id] = hash(await readFile(reviewedSourceFile(BUSINESS_SOURCE_FILES[id])));
     const manifest = {
       schemaVersion: 1, kind: 'fixture', adapter: 'trial-upgrade-component-v1', environmentId: 'existing-trial-upgrade-component-memory-qa',
       origin, serverGuardId: 'meum-memory-business-fixture-v1', productionForwarding: false, existingAccountsOnly: true,

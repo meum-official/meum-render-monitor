@@ -1,6 +1,8 @@
 import { cp, mkdir, readFile, readdir, rename, rm, lstat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { versionEvidence, excluded } from './render-mode.mjs';
+import { businessContract } from './business-contracts.mjs';
 import { validateDiagnostics } from './diagnostic.mjs';
 import { publicSummary as functionalPublicSummary } from './functional-report.mjs';
 
@@ -12,6 +14,9 @@ const groups = new Set(['공개 화면', '전시 프리뷰', '초대장', '전�
 const issueLabels = {
   javascript: '브라우저 실행 오류가 발견됐습니다.', 'browser-crash': '브라우저 탭이 종료됐습니다.', network: '필수 공개 리소스 요청에 실패했습니다.', 'http-resource': '필수 공개 리소스가 오류 응답을 반환했습니다.', http: '정상 HTTP 응답을 확인하지 못했습니다.', redirect: '등록한 공개 목적지와 다른 화면으로 이동했습니다.', 'render-timeout': '화면 준비 조건을 제한 시간 안에 확인하지 못했습니다.', 'required-content': '필수 화면 요소를 확인하지 못했습니다.', '3d-not-ready': '3D 엔진의 준비 완료를 확인하지 못했습니다.', loading: '로딩이 끝나지 않았습니다.', 'error-screen': '오류 안내 화면이 발견됐습니다.', 'empty-dom': '페이지 본문이 비어 있습니다.', 'broken-image': '표시 이미지가 로드되지 않았습니다.', 'broken-background': '배경 이미지가 로드되지 않았습니다.', 'blank-screen': '화면 픽셀이 단색으로 표시됐습니다.', 'blank-canvas': '3D 캔버스에서 실제 장면을 확인하지 못했습니다.', 'capture-unavailable': '캡처를 얻지 못해 실제 화면 픽셀은 미확인입니다.', 'read-only-block': '공개 읽기 점검에서 쓰기 요청 또는 WebSocket을 차단했습니다.', 'access-required': '인증 또는 입장 안내로 실제 화면은 미확인입니다.', contract: '이 경로의 화면 검사 기준을 확인해야 합니다.', 'entry-discovery': '공개 관람 목적지를 확인하지 못했습니다.', navigation: '공개 페이지를 여는 중 오류가 발생했습니다.', 'not-checked': '이번 실행에서 브라우저 점검을 마치지 못했습니다.', runner: '점검기를 실행하지 못해 현재 상태가 미확인입니다.', monitor: '이번 실행의 새 점검 결과를 확인하지 못했습니다.', deployment: '새 배포 확인 후 다시 점검해야 합니다.'
 };
+issueLabels['layout-overflow'] = '화면 너비를 넘는 가로 레이아웃이 발견됐습니다.';
+issueLabels['media-pending'] = '관측 구간의 이미지 로딩이 미완료입니다.';
+issueLabels['baseline-version'] = '기준 소스와 배포 버전이 일치하지 않아 명세 비교가 미확인입니다.';
 const checkNames = new Set(['HTTP 응답', '브라우저 실행', '필수 화면 요소', '실제 화면 픽셀']);
 const businessIds = ['viewer-settings-owner', 'viewer-settings-invited-admin', 'viewer-settings-readonly', 'auto-install', 'survey-target-included', 'survey-target-excluded', 'survey-submit-admin-read', 'payment-success-immediate', 'payment-success-scheduled', 'payment-failure-cancel', 'payment-duplicate-callback'];
 
@@ -79,6 +84,10 @@ export function publicSummary(source, ci = null, options = {}) {
     const group = family ? { creator: '제작자', 'archive-owner': '아카이브', webtoon: '웹툰' }[family] : groups.has(row.group) ? row.group : '공개 화면';
     if (family) identityWithheld++;
     results.push({ id: row.id, name: `${group} · ${row.id.slice(0, 8)}`, group, url, ...(family ? { publicRouteFamily: family, identityWithheld: true, identityWithheldReason: '공개 대표 경로의 식별자는 비공개로 보관하며 검사 판정은 유지합니다.' } : {}), status: ['pass', 'fail'].includes(row.status) && iso(row.checkedAt) ? row.status : row.status === 'pending' ? 'pending' : 'unknown', checkedAt: iso(row.checkedAt), durationMs: count(row.durationMs), httpStatus: Number.isSafeInteger(row.httpStatus) && row.httpStatus >= 100 && row.httpStatus <= 599 ? row.httpStatus : null, issues: (Array.isArray(row.issues) ? row.issues : []).slice(0, 30).map(issue => ({ kind: Object.hasOwn(issueLabels, issue?.kind) ? issue.kind : 'monitor', message: issueLabels[issue?.kind] || '점검 상세 내용은 비공개 로컬 보고서에 보관합니다.' })), checks: (Array.isArray(row.checks) ? row.checks : []).filter(check => checkNames.has(check.name)).map(check => ({ name: check.name, passed: check.passed === true ? true : check.passed === false ? false : null })), screenshot: null, screenshotOmittedReason: '공개 보고서에는 캡처와 고객 제목·관측 원문을 기본으로 게시하지 않습니다.' });
+    if (source.renderOnly === true) {
+      const output = results.at(-1); output.renderOnly = true; output.versions = versionEvidence(row.versions || source.versions);
+      output.renderDiagnostics = { consoleErrors: count(row.renderDiagnostics?.consoleErrors), lazyViewports: count(row.renderDiagnostics?.lazyViewports), mediaPending: count(row.renderDiagnostics?.mediaPending), horizontalOverflow: row.renderDiagnostics?.layout?.overflow === true };
+    }
     if (row.policy?.readOnly === true) results.at(-1).policy = { readOnly: true, ...Object.fromEntries(['blockedServiceWrites', 'blockedServiceSockets', 'blockedExternalWrites', 'blockedExternalSockets', 'blockedMutatingReads'].map(key => [key, count(row.policy[key])])) };
     if (row.diagnostics) {
       const output = results.at(-1);
@@ -96,7 +105,7 @@ export function publicSummary(source, ci = null, options = {}) {
   const errors = (Array.isArray(source.discovery?.errors) ? source.discovery.errors : []).map(() => '공개 목록 수집 또는 점검을 완료하지 못했습니다. 실행 로그를 확인하세요.');
   if (!sampling) errors.push('대표 표본 선택 메타가 없어 점검 범위를 확인할 수 없습니다.');
   if (withheld) errors.push('공개 선택 목록에 등록되지 않은 결과를 게시에서 제외했습니다.');
-  return { schemaVersion: 1, status: ['idle', 'running', 'completed', 'failed'].includes(source.status) ? source.status : 'failed', runId: /^run-\d+-[a-f0-9]{6}$/.test(source.runId || '') ? source.runId : null, inventorySignature: /^[a-f0-9]{64}$/.test(source.inventorySignature || '') ? source.inventorySignature : null, startedAt: iso(source.startedAt), attemptStartedAt: iso(source.attemptStartedAt), completedAt: iso(source.completedAt), intervalMinutes: Number.isFinite(source.intervalMinutes) && source.intervalMinutes > 0 ? source.intervalMinutes : 60, continuation: source.continuation === true, readOnly: true, sampling, discovery: { complete: source.discovery?.complete === true && !!sampling?.selectionId && !sampling.unavailable.length && !withheld, source: '공개 목록·비인증 입장 조건을 확인한 대표 표본', totalExhibitions: count(source.discovery?.totalExhibitions), totalTargets: Math.max(results.length + withheld, count(source.discovery?.totalTargets)), errors, sampling }, results, history: [], withheldResults: withheld, coverageOmittedResults: withheld, identityWithheldResults: identityWithheld, businessVerification: { required: true, status: 'blocked', checkedAt: null, reason: '실제 앱의 인증·저장·결제 업무는 실행하지 않았습니다. 승인된 실제 앱 adapter가 등록되지 않았습니다.', cases: businessIds.map(id => ({ id, status: 'blocked', evidenceScope: 'blocked', checkedAt: null })) } };
+  return { ...(source.renderOnly === true ? { renderOnly: true, scope: 'representative-render-only', versions: versionEvidence(source.versions), excludedChecks: ['navigation', 'business', 'authentication'] } : {}), schemaVersion: 1, status: ['idle', 'running', 'completed', 'failed'].includes(source.status) ? source.status : 'failed', runId: /^run-\d+-[a-f0-9]{6}$/.test(source.runId || '') ? source.runId : null, inventorySignature: /^[a-f0-9]{64}$/.test(source.inventorySignature || '') ? source.inventorySignature : null, startedAt: iso(source.startedAt), attemptStartedAt: iso(source.attemptStartedAt), completedAt: iso(source.completedAt), intervalMinutes: Number.isFinite(source.intervalMinutes) && source.intervalMinutes > 0 ? source.intervalMinutes : 60, continuation: source.continuation === true, readOnly: true, sampling, discovery: { complete: source.discovery?.complete === true && !!sampling?.selectionId && !sampling.unavailable.length && !withheld, source: '공개 목록·비인증 입장 조건을 확인한 대표 표본', totalExhibitions: count(source.discovery?.totalExhibitions), totalTargets: Math.max(results.length + withheld, count(source.discovery?.totalTargets)), errors, sampling }, results, history: [], withheldResults: withheld, coverageOmittedResults: withheld, identityWithheldResults: identityWithheld, businessVerification: source.renderOnly === true ? excluded() : { required: true, status: 'blocked', checkedAt: null, reason: '실제 앱의 인증·저장·결제 업무는 실행하지 않았습니다. 승인된 실제 앱 adapter가 등록되지 않았습니다.', cases: businessIds.map(id => ({ id, role: businessContract(id).role, status: 'blocked', evidenceScope: 'blocked', checkedAt: null })) } };
 }
 
 export function publicCiState(source) {

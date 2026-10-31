@@ -1,10 +1,10 @@
 import { createHash } from 'node:crypto';
-import { ruleFor } from './contracts.mjs';
+import { ruleFor, PUBLIC_STATIC_PATHS } from './contracts.mjs';
 import { resourceRole } from './resource-contracts.mjs';
 export { resourceRole } from './resource-contracts.mjs';
 
 export const DIAGNOSTIC_CAUSES = ['http-resource', 'network', 'policy-block', 'readiness', 'navigation', 'javascript', 'render', 'unclassified-resource'];
-export const DIAGNOSTIC_REASONS = ['mutating-method', 'known-mutating-read', 'websocket-disabled', 'entry-navigation-not-executed', 'network-failed', 'pending'];
+export const DIAGNOSTIC_REASONS = ['mutating-method', 'known-mutating-read', 'unreviewed-request', 'websocket-disabled', 'entry-navigation-not-executed', 'network-failed', 'pending'];
 export const DIAGNOSTIC_EVIDENCE = ['document', 'application-script', 'stylesheet', 'viewer-password-bootstrap', 'viewer-room-bootstrap', 'viewer-scene-data', 'viewer-items', 'viewer-comments', 'viewer-seo', 'viewer-entry-preflight', 'preview-detail', 'invitation-intro', 'archive-room', 'webtoon-catalog', 'webtoon-likes', 'optional-session', 'optional-plan', 'optional-navigation-badge', 'optional-owner-profile', 'pricing-catalog', 'telemetry', 'media', 'unclassified'];
 const severities = ['failure', 'warning', 'blocked', 'unknown'];
 const roles = ['essential', 'optional', 'unknown'];
@@ -24,6 +24,7 @@ export function safeLocation(raw, { sampling } = {}) {
     const origin = service || local ? url.origin : `external:${hash(url.origin)}`;
     const selected = new Set(['previews', 'invitations', 'viewers'].flatMap(key => (sampling?.[key] || []).filter(row => row.eligible).flatMap(row => [String(row.roomId), row.hash].filter(Boolean))));
     const pathname = url.pathname;
+    if (['https://meum.me', 'https://www.meum.me'].includes(url.origin) && PUBLIC_STATIC_PATHS.includes(pathname.replace(/\/+$/, '') || '/')) return { origin, path: pathname };
     // Only the frontend's fingerprinted build tree retains filenames; uploads/media do not.
     if (service && url.hostname !== 'backend.meum.me' && (/^\/assets\/[A-Za-z][A-Za-z0-9_.-]*-[A-Za-z0-9_-]{8,}\.(?:js|css)$/.test(pathname) || /^\/(?:unityMessage|main|app|service-worker)\.js$/.test(pathname))) return { origin, path: pathname };
     if (/\.(?:js|mjs|css|wasm|data|unityweb|png|jpe?g|gif|webp|svg|woff2?|mp[34]|glb|gltf|bin|json)(?:\.br|\.gz)?$/i.test(pathname)) {
@@ -63,7 +64,14 @@ export function createDiagnostics(target, sampling) {
     fail(request) { const row = ensure(request); if (row && [null, 'pending', 'network-failed'].includes(row.blockedReason)) { row.completedAt = new Date().toISOString(); row.blockedReason = 'network-failed'; } },
     block(request, reason, policyCode = reason) { const row = ensure(request); if (row) { row.blockedReason = reason; row.policyCode = policyCode; row.completedAt = new Date().toISOString(); } },
     socket(url) { const seq = ++sequence; if (requests.length >= 2000) { droppedRequests++; return; } requests.push({ seq, requestId: `${target.id}-${seq}`, at: new Date().toISOString(), completedAt: new Date().toISOString(), ...safeLocation(url, { sampling }), method: 'WS', resourceType: 'websocket', status: null, blockedReason: 'websocket-disabled', policyCode: 'websocket-disabled', ...resourceRole({ url, method: 'WS', resourceType: 'websocket', targetUrl: target.url }) }); },
-    visibleMedia(url) { const location = safeLocation(url, { sampling }); for (const row of requests) if (row.origin === location.origin && row.path === location.path) Object.assign(row, { role: 'essential', contract: 'media', sourceEvidence: 'media' }); },
+    hasBlockedEssential() { return requests.some(row => row.role === 'essential' && row.blockedReason && !['pending', 'network-failed'].includes(row.blockedReason)); },
+    visibleMedia(url) {
+      const location = safeLocation(url, { sampling });
+      const matches = requests.filter(row => row.origin === location.origin && row.path === location.path);
+      for (const row of matches) Object.assign(row, { role: 'essential', contract: 'media', sourceEvidence: 'media' });
+      // An image denied by our guard is unverified, not proof of a service failure.
+      return !matches.length || !matches.every(row => row.blockedReason && !['network-failed', 'pending'].includes(row.blockedReason));
+    },
     finish(issues, readiness, timeouts) {
       const groups = [], byKey = new Map();
       const add = (cause, severity, row, derivedKinds = []) => {
@@ -91,10 +99,16 @@ export function createDiagnostics(target, sampling) {
         else add('readiness', 'failure', null, derived);
       }
       for (const issue of issues) {
-        if (['javascript', 'browser-crash'].includes(issue.kind)) add('javascript', 'failure');
+        if (['javascript', 'browser-crash'].includes(issue.kind)) {
+          // A blocked required fetch can itself reject a promise. Its origin is uncertain,
+          // while independent exceptions and crashes still establish a failure.
+          const policyNetworkError = issue.kind === 'javascript' && blockedCore.length > 0 && /^(?:TypeError:\s*)?(?:Failed to fetch|NetworkError when attempting to fetch resource\.?)$/.test(issue.message || '');
+          const group = add('javascript', policyNetworkError ? 'unknown' : 'failure');
+          if (policyNetworkError) group.requestIds = [...new Set([...group.requestIds, ...blockedCore.map(row => row.requestId)])];
+        }
         else if (['navigation', 'http', 'redirect'].includes(issue.kind)) { if (!groups.some(group => group.severity === 'failure')) add('navigation', blockedCore.length ? 'blocked' : 'failure'); }
-        else if (['broken-image', 'broken-background'].includes(issue.kind)) add('render', 'failure');
-        else if (['capture-unavailable', 'access-required', 'contract', 'entry-discovery'].includes(issue.kind)) add('render', 'unknown');
+        else if (['broken-image', 'broken-background', 'layout-overflow'].includes(issue.kind)) add('render', 'failure');
+        else if (['capture-unavailable', 'access-required', 'contract', 'entry-discovery', 'media-pending', 'baseline-version'].includes(issue.kind)) add('render', 'unknown');
       }
       if (droppedRequests) add('unclassified-resource', 'unknown');
       if (blockedCore.length && derived.length) readiness.state = 'blocked';
@@ -111,7 +125,7 @@ export function validateDiagnostics(source, { sampling, rowId, targetUrl } = {})
   for (const row of (Array.isArray(source.requests) ? source.requests : []).slice(0, 2000)) {
     if (!Number.isSafeInteger(row.seq) || row.seq < 1 || !/^[a-f0-9]{20}-[1-9]\d*$/.test(row.requestId || '') || row.requestId !== `${rowId || row.requestId.split('-')[0]}-${row.seq}` || !iso(row.at)) continue;
     const location = /^(?:external:[a-f0-9]{12}|invalid)$/.test(row.origin || '') ? { ...safeLocation('https://backend.meum.me' + String(row.path || ''), { sampling }), origin: row.origin } : safeLocation(String(row.origin || '') + String(row.path || ''), { sampling });
-    requests.push({ seq: row.seq, requestId: row.requestId, at: iso(row.at), responseAt: iso(row.responseAt), completedAt: iso(row.completedAt), ...location, method: /^(?:GET|HEAD|POST|PUT|PATCH|DELETE|OPTIONS|CONNECT|TRACE|WS)$/.test(row.method || '') ? row.method : 'OTHER', resourceType: ['document', 'script', 'stylesheet', 'image', 'media', 'font', 'xhr', 'fetch', 'websocket', 'manifest', 'texttrack', 'eventsource', 'other'].includes(row.resourceType) ? row.resourceType : 'other', status: Number.isInteger(row.status) && row.status >= 100 && row.status <= 599 ? row.status : null, blockedReason: DIAGNOSTIC_REASONS.includes(row.blockedReason) ? row.blockedReason : null, ...(policyCodes.includes(row.policyCode) ? { policyCode: row.policyCode } : {}), role: roles.includes(row.role) ? row.role : 'unknown', contract: DIAGNOSTIC_EVIDENCE.includes(row.contract) ? row.contract : 'unclassified', sourceEvidence: DIAGNOSTIC_EVIDENCE.includes(row.sourceEvidence) ? row.sourceEvidence : 'unclassified' });
+    requests.push({ seq: row.seq, requestId: row.requestId, at: iso(row.at), responseAt: iso(row.responseAt), completedAt: iso(row.completedAt), ...location, method: /^(?:GET|HEAD|POST|PUT|PATCH|DELETE|OPTIONS|CONNECT|TRACE|WS)$/.test(row.method || '') ? row.method : 'OTHER', resourceType: ['document', 'script', 'stylesheet', 'image', 'media', 'font', 'xhr', 'fetch', 'ping', 'websocket', 'manifest', 'texttrack', 'eventsource', 'other'].includes(row.resourceType) ? row.resourceType : 'other', status: Number.isInteger(row.status) && row.status >= 100 && row.status <= 599 ? row.status : null, blockedReason: DIAGNOSTIC_REASONS.includes(row.blockedReason) ? row.blockedReason : null, ...(policyCodes.includes(row.policyCode) ? { policyCode: row.policyCode } : {}), role: roles.includes(row.role) ? row.role : 'unknown', contract: DIAGNOSTIC_EVIDENCE.includes(row.contract) ? row.contract : 'unclassified', sourceEvidence: DIAGNOSTIC_EVIDENCE.includes(row.sourceEvidence) ? row.sourceEvidence : 'unclassified' });
   }
   const ids = new Set(requests.map(row => row.requestId));
   const groups = (Array.isArray(source.groups) ? source.groups : []).filter(group => DIAGNOSTIC_CAUSES.includes(group.cause) && severities.includes(group.severity)).slice(0, 2000).map(group => ({ cause: group.cause, severity: group.severity, count: scalar(group.count), requestIds: [...new Set((group.requestIds || []).filter(id => ids.has(id)))], derivedKinds: [...new Set((group.derivedKinds || []).filter(kind => ['render-timeout', '3d-not-ready', 'loading', 'required-content', 'error-screen', 'empty-dom', 'blank-canvas', 'blank-screen'].includes(kind)))] }));

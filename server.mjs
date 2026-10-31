@@ -9,6 +9,7 @@ import { fingerprint as publicFingerprint, invalidateCycle } from './ci.mjs';
 import { runJourneys } from './journeys.mjs';
 import { runBusinessScenarios } from './business.mjs';
 import { withLayers, normalizeBusinessVerification, verificationSummary } from './verification.mjs';
+import { renderingConfig, excluded, renderLayers, renderSummary, contractDigest, versionEvidence, applyVersionEvidence } from './render-mode.mjs';
 
 export const ROOT = path.dirname(fileURLToPath(import.meta.url));
 export const DATA = path.resolve(process.env.DATA_DIR || path.join(ROOT, 'data'));
@@ -24,6 +25,7 @@ export async function saveJson(filename, value) {
 
 export async function loadConfig() {
   const config = JSON.parse(await readFile(path.resolve(process.env.CONFIG_PATH || path.join(ROOT, 'config.json')), 'utf8'));
+  if (process.env.MONITOR_RENDER_ONLY === '1') config.renderOnly = true;
   if (process.env.RETAINED_RUNS) config.retainedRuns = Number(process.env.RETAINED_RUNS);
   for (const key of ['navigationTimeoutMs', 'renderTimeoutMs', 'settleMs', 'betweenPagesMs', 'maxSitemaps', 'maxRoomPages', 'retainedRuns']) if (!Number.isFinite(config[key]) || config[key] < (['settleMs', 'betweenPagesMs'].includes(key) ? 0 : 1)) throw new Error(`잘못된 설정: ${key}`);
   if (!Array.isArray(config.origins) || !config.origins.length || !config.viewports?.length) throw new Error('origins/viewports 설정이 필요합니다.');
@@ -32,7 +34,7 @@ export async function loadConfig() {
     if (!['http:', 'https:'].includes(url.protocol) || url.origin !== origin || url.username || url.password) throw new Error('origins에는 인증 정보 없는 정확한 HTTP(S) 출처만 허용합니다.');
   }
   if (config.journeyTimeoutMs != null && (!Number.isFinite(config.journeyTimeoutMs) || config.journeyTimeoutMs < 1)) throw new Error('journeyTimeoutMs는 양수여야 합니다.');
-  return config;
+  return renderingConfig(config);
 }
 
 export function emptyState() {
@@ -45,8 +47,8 @@ export async function readState() {
     const saved = JSON.parse(await readFile(path.join(DATA, 'status.json'), 'utf8'));
     if (!Array.isArray(saved.results)) throw new Error('점검 상태 형식이 올바르지 않습니다.');
     if (saved.scope !== 'representative-render-only' && !saved.discovery?.sampling) saved.results = saved.results.map(result => ({ ...withLayers(result, result.layers?.navigation), legacyRenderOnly: !result.layers || result.legacyRenderOnly }));
-    saved.businessVerification = normalizeBusinessVerification(saved.businessVerification);
-    saved.verification = verificationSummary(saved.results, saved.businessVerification);
+    saved.businessVerification = saved.renderOnly ? excluded() : normalizeBusinessVerification(saved.businessVerification);
+    saved.verification = saved.renderOnly ? renderSummary(saved.results) : verificationSummary(saved.results, saved.businessVerification);
     saved.schemaVersion = 2;
     return saved;
   }
@@ -55,7 +57,7 @@ export async function readState() {
 
 export function markDeploymentChanged(state) {
   Object.assign(state, invalidateCycle(state, { resetCycle: true, errors: [] }));
-  state.verification = verificationSummary(state.results, state.businessVerification);
+  state.verification = state.renderOnly ? renderSummary(state.results) : verificationSummary(state.results, state.businessVerification);
   state.nextRunAt = iso();
   return state;
 }
@@ -72,15 +74,17 @@ async function retainRuns(keep) {
 }
 
 export async function runScan(config, state, persist, { stopAt = Infinity, signal } = {}) {
-  const representative = config.sampling?.enabled === true;
+  config = renderingConfig(config);
+  const representative = config.renderOnly === true || config.sampling?.enabled === true;
+  state.renderOnly = config.renderOnly === true;
   const previous = state.continuation ? structuredClone(state) : null;
   state.runId = previous?.runId || `run-${Date.now()}-${randomBytes(3).toString('hex')}`;
   state.status = 'running'; state.startedAt = previous?.startedAt || iso(); state.completedAt = null; state.nextRunAt = null; state.continuation = false;
   state.attemptStartedAt = iso();
   state.schemaVersion = 2;
   state.scope = representative ? 'representative-render-only' : 'required-layers';
-  state.businessVerification = normalizeBusinessVerification();
-  const checkpoint = async () => { state.verification = verificationSummary(state.results, state.businessVerification); await persist(); };
+  state.businessVerification = config.renderOnly ? excluded() : normalizeBusinessVerification();
+  const checkpoint = async () => { state.verification = config.renderOnly ? renderSummary(state.results) : verificationSummary(state.results, state.businessVerification); await persist(); };
   state.results = []; state.discovery = { complete: false, source: null, totalExhibitions: 0, totalTargets: 0, errors: [] };
   await checkpoint();
   let browser;
@@ -91,7 +95,7 @@ export async function runScan(config, state, persist, { stopAt = Infinity, signa
     state.discovery = { ...inventory, pages: undefined, totalTargets: inventory.pages.length * config.viewports.length };
     const pending = row => representative ? { ...row, status: 'pending', checkedAt: null, issues: [], checks: [] } : withLayers({ ...row, status: 'pending', checkedAt: null, issues: [], checks: [] }, { status: 'not-run', reason: '기능/이동 검사를 아직 실행하지 않았습니다.' });
     state.results = inventory.pages.flatMap(page => config.viewports.map(viewport => pending({ ...page, id: createHash('sha256').update(page.url + viewport.name).digest('hex').slice(0, 20), viewport, name: `${page.name}${config.viewports.length > 1 ? ` · ${viewport.name}` : ''}` })));
-    const definitions = await Promise.all(['contracts.mjs', 'probe.mjs', 'diagnostic.mjs', 'resource-contracts.mjs', 'discovery.mjs', 'sampling.mjs', 'read-only-policy.mjs', 'safety.mjs', 'verification.mjs', 'journeys.mjs', 'journey-contracts.mjs', 'business.mjs', 'business-contracts.mjs', 'checkpoint.mjs', 'server.mjs', 'package-lock.json'].map(name => readFile(path.join(ROOT, name), 'utf8')));
+    const definitions = await Promise.all(['contracts.mjs', 'probe.mjs', 'diagnostic.mjs', 'resource-contracts.mjs', 'discovery.mjs', 'sampling.mjs', 'read-only-policy.mjs', 'safety.mjs', 'verification.mjs', 'journeys.mjs', 'journey-contracts.mjs', 'business.mjs', 'business-contracts.mjs', 'checkpoint.mjs', 'server.mjs', 'render-mode.mjs', 'product-source.mjs', 'package-lock.json'].map(name => readFile(path.join(ROOT, name), 'utf8')));
     const signature = createHash('sha256').update(JSON.stringify([config, state.results.map(x => x.id).sort(), definitions])).digest('hex');
     if (previous?.inventorySignature === signature) {
       const known = new Map(previous.results.map(x => [x.id, x]));
@@ -110,10 +114,12 @@ export async function runScan(config, state, persist, { stopAt = Infinity, signa
       if (!config.sampling?.enabled) state.results.push(...previous.results.filter(x => x.discoveredFrom && sources.has(x.discoveredFrom) && !ids.has(x.id)).map(x => x.checkedAt ? x : { ...x, status: 'pending', issues: [] }));
     } else if (previous) { state.runId = `run-${Date.now()}-${randomBytes(3).toString('hex')}`; state.startedAt = iso(); }
     state.inventorySignature = signature;
+    state.versions = versionEvidence({ monitorRevision: process.env.GITHUB_SHA, contractHash: contractDigest((await Promise.all(['contracts.mjs', 'render-mode.mjs'].map(name => readFile(path.join(ROOT, name), 'utf8')))).join('\n')) });
     await checkpoint();
     if (signal?.aborted) throw new Error('점검 프로그램이 종료됐습니다.');
     browser = await launchBrowser();
-    if (representative) {
+    if (config.renderOnly) state.businessVerification = excluded();
+    else if (representative) {
       state.businessVerification = normalizeBusinessVerification();
       state.businessVerification.status = 'blocked';
       state.businessVerification.cases = state.businessVerification.cases.map(item => ({ ...item, status: 'blocked' }));
@@ -135,7 +141,8 @@ export async function runScan(config, state, persist, { stopAt = Infinity, signa
       }
       const target = state.results[index];
       const rendered = await probe(browser, target, { ...config, diagnosticSampling: inventory.sampling }, path.join(DATA, 'screenshots', state.runId));
-      if (representative) state.results[index] = rendered;
+      if (config.renderOnly) state.results[index] = renderLayers(applyVersionEvidence(rendered, state.versions));
+      else if (representative) state.results[index] = rendered;
       else {
       let navigation;
       if (config.functionalNavigation === false) navigation = { status: 'not-run', reason: '기능/이동 검사가 명시적으로 비활성화됐습니다.' };
@@ -246,7 +253,7 @@ async function main() {
       const stopAt = process.env.MONITOR_STOP_AT && state.mode === 'after-deploy' ? Date.parse(process.env.MONITOR_STOP_AT) : Infinity;
       if (Number.isNaN(stopAt)) throw new Error('MONITOR_STOP_AT 시각이 올바르지 않습니다.');
       await runScan(config, state, persist, { stopAt });
-      process.exitCode = state.results.some(x => x.status === 'fail') || (!config.sampling?.enabled && state.businessVerification.status === 'fail') ? 1 : state.status === 'failed' || !state.discovery.complete || state.results.some(x => x.status === 'unknown') || (!config.sampling?.enabled && state.businessVerification.status !== 'pass') ? 2 : 0;
+      process.exitCode = state.results.some(x => x.status === 'fail') || (!config.renderOnly && !config.sampling?.enabled && state.businessVerification.status === 'fail') ? 1 : state.status === 'failed' || !state.discovery.complete || state.results.some(x => x.status === 'unknown') || (!config.renderOnly && !config.sampling?.enabled && state.businessVerification.status !== 'pass') ? 2 : 0;
     } finally { await unlock(); }
     return;
   }

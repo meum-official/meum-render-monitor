@@ -10,7 +10,7 @@
     "start": "node --env-file-if-exists=.env server.mjs",
     "scan": "node --env-file-if-exists=.env server.mjs --once",
     "test": "node --test test/*.test.mjs",
-    "test:browser": "node --env-file=test/browser.env --test --test-concurrency=1 test/browser.test.mjs test/capture.test.mjs test/sample-scan.test.mjs test/read-only-get.test.mjs test/diagnostic-report.test.mjs test/diagnostic.test.mjs test/journeys.test.mjs test/report.test.mjs test/safety.test.mjs test/scan.test.mjs",
+    "test:browser": "node --env-file=test/browser.env --test --test-concurrency=1 test/browser.test.mjs test/capture.test.mjs test/sample-scan.test.mjs test/read-only-get.test.mjs test/diagnostic-report.test.mjs test/diagnostic.test.mjs test/journeys.test.mjs test/report.test.mjs test/safety.test.mjs test/scan.test.mjs test/customer-center-contract.test.mjs test/render-mode-browser.test.mjs",
     "install:browser": "playwright install chromium",
     "test:business:fixture": "node --env-file=test/business-browser.env --test --test-concurrency=1 test/business.test.mjs test/business-readonly.test.mjs test/business-auto-install.test.mjs test/business-survey.test.mjs"
   },

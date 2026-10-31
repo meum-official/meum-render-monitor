@@ -1,11 +1,10 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
+import { reviewedSourceFile } from './product-source.mjs';
 import { BUSINESS_CONTRACTS, BUSINESS_SOURCE_FILES, businessContract } from './business-contracts.mjs';
 import { safeMessage } from './probe.mjs';
 
-const workspace = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const sha256 = value => createHash('sha256').update(value).digest('hex');
 const fail = message => { throw new Error(message); };
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
@@ -60,7 +59,7 @@ export async function verifyBusinessEnvironment(options, fetcher = fetch) {
   for (const [sourceId, expected] of Object.entries(manifest.sourceProof)) {
     const relative = Object.hasOwn(BUSINESS_SOURCE_FILES, sourceId) ? BUSINESS_SOURCE_FILES[sourceId] : null;
     if (!relative || !/^[a-f0-9]{64}$/.test(expected)) fail('등록되지 않은 소스 증명입니다. 자격증명 파일이나 임의 경로는 읽지 않습니다.');
-    if (sha256(await readFile(path.join(workspace, relative))) !== expected) fail(`소스가 승인 시점과 달라졌습니다: ${sourceId}`);
+    if (sha256(await readFile(reviewedSourceFile(relative))) !== expected) fail(`소스가 승인 시점과 달라졌습니다: ${sourceId}`);
   }
   const requested = options.scenarioIds || Object.keys(manifest.scenarios || {});
   if (!Array.isArray(requested) || requested.some(id => !businessContract(id))) fail('등록되지 않은 업무 시나리오 선택입니다.');

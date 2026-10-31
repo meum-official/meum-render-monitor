@@ -12,6 +12,44 @@ const ready = () => ({ state: 'ready', selectors: [], loading: [], errorSelector
 const limits = { navigationMs: 30000, readinessMs: 90000 };
 const finishRequest = (trace, req, status) => { trace.response({ request: () => req, status: () => status }); trace.finished(req); };
 
+test('visible media denied by the monitor stays blocked while HTTP and network errors remain failures', () => {
+  for (const outcome of ['blocked', 'http', 'network', 'untracked']) {
+    const trace = createDiagnostics(target, sampling), req = request('https://static.nid.naver.com/oauth/button_g.PNG', 'image');
+    if (outcome === 'blocked') { trace.block(req, 'unreviewed-request'); trace.fail(req); }
+    if (outcome === 'http') finishRequest(trace, req, 404);
+    if (outcome === 'network') trace.fail(req);
+    const failed = trace.visibleMedia(req.url());
+    assert.equal(failed, outcome !== 'blocked');
+    const diagnostic = trace.finish(failed ? [{ kind: 'broken-image' }] : [], ready(), limits);
+    assert.equal(diagnostic.groups.some(group => group.severity === 'failure'), outcome !== 'blocked');
+    if (outcome === 'blocked') assert.equal(diagnostic.groups[0].severity, 'blocked');
+  }
+});
+
+test('browser distinguishes policy-denied images from actual image404 and permits login redirects', { skip: process.env.RUN_BROWSER_TESTS !== '1', timeout: 45000 }, async () => {
+  let deniedHits = 0;
+  const server = createServer((req, res) => {
+    if (req.url === '/blocked.png') deniedHits++;
+    if (req.url.endsWith('.png')) { res.writeHead(404); res.end(); return; }
+    res.setHeader('Content-Type', 'text/html');
+    res.end(`<main style="padding:30px;background:linear-gradient(45deg,#abc,#fed)"><h1>Image diagnostics fixture</h1><p>Visible content and required controls are ready independently of the image request.</p><img width="100" height="100" src="${req.url === '/login' ? '/blocked.png' : '/missing.png'}"></main><script>if(location.pathname==='/login')history.replaceState({},'', '/login/info')</script>`);
+  });
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  const origin = `http://127.0.0.1:${server.address().port}`;
+  let browser;
+  try {
+    browser = await launchBrowser();
+    for (const [pathname, expected] of [['/login', 'unknown'], ['/broken', 'fail']]) {
+      const value = await probe(browser, { ...target, url: origin + pathname, viewport: { width: 900, height: 600 }, rule: { selectors: ['main h1'] } }, { origins: [origin], navigationTimeoutMs: 3000, renderTimeoutMs: 500, settleMs: 100, publicObservationPolicy: { request: req => ({ allowed: req.url() !== origin + '/blocked.png' }) } }, 'unused');
+      assert.equal(value.status, expected);
+      assert.equal(value.issues.some(issue => issue.kind === 'broken-image'), expected === 'fail');
+      assert.equal(value.issues.some(issue => issue.kind === 'redirect'), false);
+      if (expected === 'unknown') assert.ok(value.diagnostics.groups.some(group => group.cause === 'policy-block' && group.severity === 'blocked'));
+    }
+    assert.equal(deniedHits, 0);
+  } finally { await browser?.close(); server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); }
+});
+
 test('diagnostic locations retain public build paths but never filename tails, query values or unselected identities', () => {
   for (const path of ['/assets/main-Da23N7sC.js', '/assets/main-LxnxBmbb.css', '/assets/runtime-core.esm-bundler-C5U2QBoc.js', '/unityMessage.js']) assert.equal(safeLocation('https://meum.me' + path + '?token=SECRET', { sampling }).path, path);
   for (const path of ['/uploads/photo.alice.smith.png', '/uploads/file.SECRETTOKEN123.json', '/uploads/art.alice.smith.wasm.br', '/assets/:asset-abcdef012345.SECRET.json', '/archive/PRIVATE_PERSON', '/creator/ws_PRIVATE_PERSON', '/webtoon/PRIVATE_EPISODE']) {
@@ -89,6 +127,40 @@ test('public diagnostic validation rejects asset-tail, external path, CSS, secre
   const clean = validateDiagnostics(value, { sampling, rowId: id, targetUrl: target.url });
   assert.doesNotMatch(JSON.stringify(clean), /SECRET|alice|cookie|headers|body/);
   assert.deepEqual(clean.readiness.selectors, []);
+});
+
+test('real sendBeacon ping remains blocked and optional without hiding an independent script404', { skip: process.env.RUN_BROWSER_TESTS !== '1', timeout: 45000 }, async t => {
+  let receivedPosts = 0;
+  const server = createServer((req, res) => {
+    if (req.method === 'POST') { receivedPosts++; res.end('{}'); return; }
+    if (req.url === '/missing-app.js') { res.writeHead(404, { 'Content-Type': 'text/javascript' }); res.end('/* missing synthetic script */'); return; }
+    res.setHeader('Content-Type', 'text/html');
+    res.end(`<html><body style="background:linear-gradient(40deg,#cde,#edc)"><main style="padding:30px"><h1>Beacon fixture</h1><p>Visible synthetic content proves that blocked analytics do not initialize this application page.</p></main><script>navigator.sendBeacon('/analytics/ingest', '{"synthetic":true}')</script>${req.url === '/broken' ? '<script src="/missing-app.js"></script>' : ''}</body></html>`);
+  });
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  const origin = `http://127.0.0.1:${server.address().port}`;
+  let browser;
+  try {
+    browser = await launchBrowser();
+    for (const [pathname, expectedStatus] of [['/healthy', 'pass'], ['/broken', 'fail']]) {
+      const fixture = { ...target, url: origin + pathname, viewport: { name: 'desktop', width: 900, height: 600 }, rule: { selectors: ['main h1'] } };
+      const result = await probe(browser, fixture, { origins: [origin], navigationTimeoutMs: 3000, renderTimeoutMs: 500, settleMs: 200, captureScreenshots: false }, 'unused');
+      const beacon = result.diagnostics.requests.find(row => row.method === 'POST');
+      assert.ok(beacon, 'the genuine navigator.sendBeacon request was observed');
+      assert.equal(beacon.resourceType, 'ping');
+      assert.equal(beacon.role, 'optional');
+      assert.equal(beacon.contract, 'telemetry');
+      assert.equal(beacon.blockedReason, 'mutating-method');
+      assert.equal(beacon.status, null);
+      assert.ok(result.diagnostics.groups.some(group => group.cause === 'policy-block' && group.severity === 'warning' && group.requestIds.includes(beacon.requestId)));
+      const published = validateDiagnostics(result.diagnostics, { rowId: fixture.id, targetUrl: fixture.url });
+      assert.equal(published.requests.find(row => row.requestId === beacon.requestId)?.resourceType, 'ping');
+      assert.equal(result.status, expectedStatus, pathname);
+      if (pathname === '/broken') assert.ok(result.diagnostics.groups.some(group => group.cause === 'http-resource' && group.severity === 'failure'));
+      assert.equal(receivedPosts, 0, 'the server must never receive an analytics POST');
+      t.diagnostic(JSON.stringify({ fixture: pathname, expectedStatus, actualStatus: result.status, resourceType: beacon.resourceType, role: beacon.role, blockedReason: beacon.blockedReason, httpStatus: beacon.status, publicResourceType: published.requests.find(row => row.requestId === beacon.requestId).resourceType, serverPostRequests: receivedPosts, independentHttpFailure: result.diagnostics.groups.some(group => group.cause === 'http-resource' && group.severity === 'failure') }));
+    }
+  } finally { await browser?.close(); server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); }
 });
 
 test('browser counterexamples distinguish optional warnings, unknown errors, core failures and policy-blocked readiness', { skip: process.env.RUN_BROWSER_TESTS !== '1', timeout: 45000 }, async () => {

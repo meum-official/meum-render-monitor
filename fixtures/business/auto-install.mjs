@@ -1,3 +1,4 @@
+import { productSourceRoot, reviewedSourceFile } from '../../product-source.mjs';
 // Compile only the current auto-install method and DTO helpers; never import the app, DB models, config, or env.
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
@@ -7,7 +8,7 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { createHash, randomUUID } from 'node:crypto';
 
-const workspace = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
+const workspace = productSourceRoot(true);
 const backend = path.join(workspace, '8080_meum-backend-api-develop/meum-backend-api-develop');
 const hash = value => createHash('sha256').update(value).digest('hex');
 const clone = value => JSON.parse(JSON.stringify(value));
@@ -21,6 +22,7 @@ export const AUTO_INSTALL_MEMORY_SOURCE_FILES = {
 };
 
 export async function createCurrentAutoInstallMemoryFixture() {
+  productSourceRoot();
   const require = createRequire(path.join(backend, 'package.json'));
   const { parse } = require('@babel/parser');
   const source = await readFile(path.join(backend, 'services/roomService.js'), 'utf8');
@@ -76,7 +78,7 @@ export async function createCurrentAutoInstallMemoryFixture() {
     console: { log() {}, warn() {}, error(error) { errors.push(error.message); } },
   });
   const sourceProof = {};
-  for (const [id, relative] of Object.entries(AUTO_INSTALL_MEMORY_SOURCE_FILES)) sourceProof[id] = hash(await readFile(path.join(workspace, relative)));
+  for (const [id, relative] of Object.entries(AUTO_INSTALL_MEMORY_SOURCE_FILES)) sourceProof[id] = hash(await readFile(reviewedSourceFile(relative)));
   return {
     dataset: { roomId, landId: 10, itemIds: items.map(item => item.id), expectedStartPoint: clone(startPoints[10]), existing: true },
     before: clone(before), items: clone(items), template: clone(template), sourceProof,
@@ -91,6 +93,7 @@ export async function createCurrentAutoInstallMemoryFixture() {
 }
 
 export async function checkCurrentAutoInstallFixture() {
+  productSourceRoot();
   const fixture = await createCurrentAutoInstallMemoryFixture();
   const { roomId, itemIds } = fixture.dataset;
   const before = fixture.before;

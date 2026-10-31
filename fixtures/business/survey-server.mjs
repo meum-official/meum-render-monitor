@@ -1,3 +1,4 @@
+import { productSourceRoot, reviewedSourceFile } from '../../product-source.mjs';
 // Actual creator-feedback Vue + actual survey routes/services; only existing synthetic models/auth are replaced.
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { readFileSync } from 'node:fs';
@@ -8,7 +9,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import vm from 'node:vm';
 import { BUSINESS_SOURCE_FILES } from '../../business-contracts.mjs';
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
+const root = productSourceRoot(true);
 const admin = path.join(root, '8302_adminMeum-master');
 const backend = path.join(root, '8080_meum-backend-api-develop/meum-backend-api-develop');
 const hash = value => createHash('sha256').update(value).digest('hex');
@@ -94,6 +95,7 @@ const app=createApp(Host);app.use(store);app.use(router);await router.isReady();
 }
 
 export async function createSurveyBusinessFixture(directory, { adminReadback = 'normal' } = {}) {
+  productSourceRoot();
   if (!['normal', 'missing'].includes(adminReadback)) throw new Error('Unknown synthetic fault mode');
   const memory = backendFixture();
   await memory.voc.recordSuccessfulSave({ userId: 7, excluded: false }, 51);
@@ -140,7 +142,7 @@ export async function createSurveyBusinessFixture(directory, { adminReadback = '
     const sourceProof = {};
     for (const id of sourceIds) {
       if (!BUSINESS_SOURCE_FILES[id]) throw new Error(`Survey source registry is missing ${id}`);
-      sourceProof[id] = hash(await readFile(path.join(root, BUSINESS_SOURCE_FILES[id])));
+      sourceProof[id] = hash(await readFile(reviewedSourceFile(BUSINESS_SOURCE_FILES[id])));
     }
     const manifest = { schemaVersion: 1, kind: 'fixture', adapter: 'creator-voc-ui-memory-v1', environmentId: 'existing-creator-voc-ui-memory-qa', origin, serverGuardId: 'meum-memory-business-fixture-v1', productionForwarding: false, existingAccountsOnly: true, database: { mode: 'memory' }, dataset: { existing: true, roomId: 51, surveyId: 11, questionIds: [101, 102] }, roles: Object.fromEntries(Object.keys(identities).map(role => [role, `existing-fixture-${role}`])), sourceProof, scenarios: Object.fromEntries(scenarioIds.map(id => [id, { pagePath: '/exhibition-dashboard' }])) };
     const bytes = Buffer.from(JSON.stringify(manifest, null, 2));

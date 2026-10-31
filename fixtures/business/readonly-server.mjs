@@ -1,3 +1,4 @@
+import { productSourceRoot, reviewedSourceFile } from '../../product-source.mjs';
 // Actual Admin/Experience SFCs + current backend authorization/route code, with memory-only models.
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import path from 'node:path';
@@ -8,7 +9,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createHash } from 'node:crypto';
 import { BUSINESS_SOURCE_FILES } from '../../business-contracts.mjs';
 
-const workspace = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
+const workspace = productSourceRoot(true);
 const adminRoot = path.join(workspace, '8302_adminMeum-master');
 const backendRoot = path.join(workspace, '8080_meum-backend-api-develop/meum-backend-api-develop');
 const hash = value => createHash('sha256').update(value).digest('hex');
@@ -32,6 +33,7 @@ async function sourceFixture() {
 }
 
 export async function createReadonlyBackendPolicy(room) {
+  productSourceRoot();
   // Every VM receives fresh mocks. Application models/config/env/network modules are never required.
   const counters = { policyInvocations: 0, inviteReads: 0, workspaceReads: 0, transactions: 0, roomSaves: 0 };
   const baseline = clone(room);
@@ -99,12 +101,14 @@ export async function createReadonlyBackendPolicy(room) {
 }
 
 export async function createReadonlyBackendFixture() {
+  productSourceRoot();
   return createReadonlyBackendPolicy((await sourceFixture()).room);
 }
 
 const noNetworkDevClient = `const styles=new Map();export const createHotContext=()=>({data:{},accept(){},acceptExports(){},dispose(){},prune(){},on(){},off(){},send(){},invalidate(){}});export function updateStyle(id,css){let el=styles.get(id);if(!el){el=document.createElement('style');styles.set(id,el);document.head.appendChild(el);}el.textContent=css;}export function removeStyle(id){styles.get(id)?.remove();styles.delete(id);}export const injectQuery=(url,q)=>url+(url.includes('?')?'&':'?')+q;`;
 
 export async function createReadonlyBusinessFixture(directory) {
+  productSourceRoot();
   const seed = await sourceFixture();
   const policy = await createReadonlyBackendPolicy(seed.room);
   const require = createRequire(path.join(adminRoot, 'package.json'));
@@ -177,7 +181,7 @@ export async function createReadonlyBusinessFixture(directory) {
     const sourceProof = {};
     for (const id of ['admin-experience-ui', 'admin-room-read', 'admin-experience-fixture', 'room-update-routes', 'room-permissions', 'room-workspace-service', 'room-master-policy', 'business-readonly-server']) {
       assert.ok(BUSINESS_SOURCE_FILES[id], `root integration must register source key ${id}`);
-      sourceProof[id] = hash(await readFile(path.join(workspace, BUSINESS_SOURCE_FILES[id])));
+      sourceProof[id] = hash(await readFile(reviewedSourceFile(BUSINESS_SOURCE_FILES[id])));
     }
     const manifest = { schemaVersion: 1, environmentId: 'current-readonly-ui-http-backend-policy-memory', kind: 'fixture', adapter: 'source-ui-http-fixture-v1',
       origin, serverGuardId: 'meum-memory-business-fixture-v1', productionForwarding: false, existingAccountsOnly: true,

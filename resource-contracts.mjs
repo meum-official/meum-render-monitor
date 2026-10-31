@@ -22,9 +22,18 @@ export function resourceRole({ url, method = 'GET', resourceType, targetUrl, sta
   const preview = main && /^\/exhibition\/(?:preview\/)?\d+$/.test(page);
   const invitation = main && /^\/exhibition\/invitation\/[^/]+$/.test(page);
   const webtoon = main && /^\/webtoon(?:\/[^/]+)?$/.test(page);
+  const backend = request.origin === 'https://backend.meum.me' || local(target) && request.origin === target.origin;
 
+  // session.js324-340 catches beacon/fetch failures. The three GA collector
+  // origins and /g/collect matched stored request hashes; no other Google routes qualify.
+  if (verb === 'POST' && ['fetch', 'xhr', 'other', 'ping'].includes(resourceType) && (
+    backend && path === '/analytics/ingest' ||
+    ['https://www.google.com', 'https://analytics.google.com', 'https://stats.g.doubleclick.net'].includes(request.origin) && path === '/g/collect'
+  )) return result('optional', 'telemetry');
   // analytics/index.js setup is best-effort; telemetry does not initialize page content.
   if (/(^|\.)(?:google-analytics\.com|googletagmanager\.com)$/.test(request.hostname)) return result('optional', 'telemetry');
+  // The GA audience pixel is analytics; it does not supply page content.
+  if (read && resourceType === 'image' && request.origin === 'https://www.google.co.kr' && path === '/ads/ga-audiences') return result('optional', 'telemetry');
   // Browser-declared application resources on this page's own origin. Third-party
   // scripts/frames are not promoted to essential merely because they are scripts.
   if (read && request.origin === target.origin) {
@@ -32,7 +41,6 @@ export function resourceRole({ url, method = 'GET', resourceType, targetUrl, sta
     if (resourceType === 'script') return result('essential', 'application-script');
     if (resourceType === 'stylesheet') return result('essential', 'stylesheet');
   }
-  const backend = request.origin === 'https://backend.meum.me' || local(target) && request.origin === target.origin;
   if (!backend || !['fetch', 'xhr'].includes(resourceType)) return result();
 
   // MeumLiteViewerEntry.vue419-447: exact-ID lifecycle preflight enables Unity.

@@ -1,3 +1,4 @@
+import { productSourceRoot } from '../../product-source.mjs';
 // Actual component logic only: no Vue app, credentials, backend, or customer data are loaded.
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -7,8 +8,9 @@ import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import assert from 'node:assert/strict';
 
-const workspace = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
+const workspace = productSourceRoot(true);
 export async function checkReadonlyComponentFixture() {
+  productSourceRoot();
   const source = await readFile(path.join(workspace, '8302_adminMeum-master/src/components/exhibition/experience/ExhibitionExperience.vue'), 'utf8');
   const script = source.split('<script setup>')[1]?.split('</script>')[0];
   assert.ok(script, 'actual script setup is required');

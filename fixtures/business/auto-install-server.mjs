@@ -1,3 +1,4 @@
+import { productSourceRoot, reviewedSourceFile } from '../../product-source.mjs';
 // Actual AutoSettingBox UI -> localhost HTTP -> current DTO method -> isolated memory only.
 import { appendFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -6,13 +7,14 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createHash, randomUUID } from 'node:crypto';
 import { createCurrentAutoInstallMemoryFixture } from './auto-install.mjs';
 
-const workspace = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
+const workspace = productSourceRoot(true);
 const admin = path.join(workspace, '8302_adminMeum-master');
 const hash = value => createHash('sha256').update(value).digest('hex');
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 const noNetworkClient = `const styles=new Map();export const createHotContext=()=>({data:{},accept(){},acceptExports(){},dispose(){},prune(){},on(){},off(){},send(){},invalidate(){}});export function updateStyle(id,text){let node=styles.get(id);if(!node){node=document.createElement('style');styles.set(id,node);document.head.appendChild(node);}node.textContent=text;}export function removeStyle(id){styles.get(id)?.remove();styles.delete(id);}export const injectQuery=(url,query)=>url+(url.includes('?')?'&':'?')+query;`;
 
 export async function createAutoInstallBusinessFixture(directory, { readbackFault = null, failNextInstall = false } = {}) {
+  productSourceRoot();
   if (![null, 'wrong-startpoint'].includes(readbackFault)) throw new Error('Unregistered memory-only readback fault');
   const memory = await createCurrentAutoInstallMemoryFixture();
   const require = createRequire(path.join(admin, 'package.json'));
@@ -92,7 +94,7 @@ const app=createApp({render:()=>h(AutoSettingBox,{totalPosts:2})});app.use(store
     await server.listen();
     origin = `http://127.0.0.1:${server.httpServer.address().port}`;
     const files = { ...memory.sourceProof };
-    for (const [key, relative] of Object.entries({ 'auto-install-ui': '8302_adminMeum-master/src/components/artwork/modal/AutoSettingBox.vue', 'auto-install-ui-policy': '8302_adminMeum-master/src/policies/exhibitionPolicy.js', 'auto-install-confirm-ui': '8302_adminMeum-master/src/components/common/modal/ConfirmSmallModal.vue', 'business-auto-install-server': 'tools/meum-render-monitor/fixtures/business/auto-install-server.mjs' })) files[key] = hash(await readFile(path.join(workspace, relative)));
+    for (const [key, relative] of Object.entries({ 'auto-install-ui': '8302_adminMeum-master/src/components/artwork/modal/AutoSettingBox.vue', 'auto-install-ui-policy': '8302_adminMeum-master/src/policies/exhibitionPolicy.js', 'auto-install-confirm-ui': '8302_adminMeum-master/src/components/common/modal/ConfirmSmallModal.vue', 'business-auto-install-server': 'tools/meum-render-monitor/fixtures/business/auto-install-server.mjs' })) files[key] = hash(await readFile(reviewedSourceFile(relative)));
     manifest = { schemaVersion: 1, kind: 'fixture', adapter: 'auto-install-component-v1', environmentId: 'actual-auto-install-component-memory', origin, serverGuardId: 'meum-memory-business-fixture-v1', productionForwarding: false, existingAccountsOnly: true, database: { mode: 'memory' }, dataset: memory.dataset, roles: { owner: 'synthetic-existing-owner-991100' }, sourceProof: files, scenarios: { 'auto-install': { pagePath: '/artwork' } } };
     const manifestBytes = Buffer.from(JSON.stringify(manifest, null, 2));
     const manifestSha256 = hash(manifestBytes);

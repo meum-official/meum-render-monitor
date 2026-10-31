@@ -16,6 +16,7 @@ const layerStatus = value => Object.hasOwn(LAYER_STATUS_LABELS, value) ? value :
 const combineStatuses = values => ['fail', 'blocked', 'unregistered', 'not-run'].find(status => values.includes(status)) || (values.length ? 'pass' : 'unregistered');
 
 export function normalizedLayer(result, key) {
+  if (result.renderOnly && key !== 'render') return { required: false, status: 'not-run', cases: [], reason: '대상 아님: 렌더링 전용 검사' };
   const source = result.layers?.[key];
   const legacy = !result.layers;
   const required = key === 'render' || source?.required !== false;
@@ -35,6 +36,7 @@ export function normalizedLayer(result, key) {
 }
 
 export function normalizedBusiness(source) {
+  if (source?.required === false && source?.cases?.length === 0) return { required: false, status: 'not-run', cases: [], reason: '대상 아님: 렌더링 전용 검사' };
   const supplied = Array.isArray(source?.cases) ? source.cases : [];
   const unknown = supplied.some(item => !Object.hasOwn(BUSINESS_ROLE_REGISTRY, item?.id));
   const invalid = source?.cases !== undefined && !Array.isArray(source.cases);
@@ -123,12 +125,18 @@ if (typeof document !== 'undefined') (() => {
   function layerBadge(layer, prefix = '') {
     const style = layer.status === 'pass' && layer.required ? 'pass' : layer.status === 'fail' && layer.required ? 'fail' : 'unknown';
     const badge = el('span', 'layer-badge ' + style);
-    badge.append(el('span', 'dot dot-' + (style === 'pass' ? 'green' : style === 'fail' ? 'red' : 'gray')), document.createTextNode(prefix + (layer.required ? LAYER_STATUS_LABELS[layer.status] : '별도 검사')));
+    badge.append(el('span', 'dot dot-' + (style === 'pass' ? 'green' : style === 'fail' ? 'red' : 'gray')), document.createTextNode(prefix + (layer.required ? LAYER_STATUS_LABELS[layer.status] : state.renderOnly ? '대상 아님' : '별도 검사')));
     return badge;
   }
   function renderLayerSummaries(results) {
     const adjusted = results.map(result => ({ ...result, layers: Object.fromEntries(LAYER_KEYS.map(key => [key, displayedLayer(result, key)])) }));
     const business = displayedBusiness();
+    if ($('business-scope-title')) {
+      const outOfScope = state.renderOnly || business.required === false;
+      const blocked = business.cases.filter(item => ['blocked', 'not-run'].includes(item.status)).length;
+      $('business-scope-title').textContent = outOfScope ? '기능·인증 업무 · 대상 아님' : `실제 앱 업무 ${business.cases.length}개 · ${blocked === business.cases.length ? '모두 차단 / 미실행' : '별도 검증 결과'}`;
+      $('business-scope-note').textContent = outOfScope ? '생성·수정·초대·결제·비밀번호·프로필 변경과 메뉴 여정을 실행하거나 통과로 집계하지 않습니다. 로그인 화면 표시는 인증 성공을 뜻하지 않습니다.' : '이전 보고서의 별도 업무 검증 상태입니다. 렌더링 통과와 구분합니다.';
+    }
     const summary = verificationCounts(adjusted, business);
     const cards = LAYER_KEYS.map(key => {
       const info = summary[key];
@@ -136,14 +144,15 @@ if (typeof document !== 'undefined') (() => {
       const top = el('div', 'layer-card-heading');
       const allPass = info.total > 0 && info.pass === info.total;
       const currentStatus = ['fail', 'blocked', 'unregistered', 'not-run'].find(status => info[status] > 0) || (allPass ? 'pass' : 'unregistered');
-      top.append(el('h3', '', LAYER_LABELS[key]), layerBadge({ status: currentStatus, required: true }));
-      card.append(top, el('p', 'layer-card-total', `${info.pass} / ${info.total} 통과`));
+      const excluded = state.renderOnly && key !== 'render';
+      top.append(el('h3', '', LAYER_LABELS[key]), excluded ? el('span', 'muted', '대상 아님') : layerBadge({ status: currentStatus, required: true }));
+      card.append(top, el('p', 'layer-card-total', excluded ? '집계 제외 · 실행하지 않음' : `${info.pass} / ${info.total} 통과`));
       const counts = el('div', 'layer-counts');
       for (const [status, label] of Object.entries(LAYER_STATUS_LABELS)) counts.append(el('span', status === 'fail' && info[status] ? 'text-fail' : '', `${label} ${info[status]}`));
-      card.append(counts);
-      const note = key === 'business' ? business.reason || '인증된 업무 시나리오를 별도로 확인합니다.' : key === 'navigation' ? '등록된 이동 시나리오가 통과해야 페이지의 필수 검사 통과로 표시합니다.' : '본문·실행 오류·렌더링 준비 조건을 확인합니다.';
+      if (!excluded) card.append(counts);
+      const note = excluded ? '대상 아님: 렌더링 전용 검사에서는 실행하거나 통과로 집계하지 않습니다.' : key === 'business' ? business.reason || '인증된 업무 시나리오를 별도로 확인합니다.' : key === 'navigation' ? '등록된 이동 시나리오가 통과해야 페이지의 필수 검사 통과로 표시합니다.' : '본문·실행 오류·렌더링 준비 조건을 확인합니다.';
       card.append(el('p', 'layer-card-note', note));
-      if (info.excluded) card.append(el('p', 'layer-card-note', `이 단계 적용 제외 ${info.excluded}개는 통과로 집계하지 않습니다.`));
+      if (info.excluded && !excluded) card.append(el('p', 'layer-card-note', `이 단계 적용 제외 ${info.excluded}개는 통과로 집계하지 않습니다.`));
       if (key === 'business' && business.cases.length) {
         const cases = el('details', 'global-cases');
         cases.append(el('summary', '', `업무 시나리오 ${business.cases.length}개와 실행 사유`), caseList(business.cases));
@@ -254,11 +263,12 @@ if (typeof document !== 'undefined') (() => {
     for (const row of results) counts[statusOf(row)] += 1;
     const total = Math.max(results.length, Number(state.discovery?.totalTargets) || 0);
     counts.unknown += total - results.length;
+    if ($('version-meta')) { const v = state.versions || {}; $('version-meta').textContent = `모니터 ${v.monitorRevision || 'unknown'} · 명세 ${v.contractHash || 'unknown'} · 제품 소스 ${v.sourceRevision || 'unknown'} · 운영 배포 ${v.deployedRevision || 'unknown'} · 버전 대조 ${v.comparison || 'unknown'}`; }
     $('total-count').textContent = total.toLocaleString('ko-KR');
     for (const key of ['pass', 'fail', 'unknown']) $(key + '-count').textContent = counts[key].toLocaleString('ko-KR');
     const running = state.status === 'running';
     const sampling = state.sampling || state.discovery?.sampling;
-    const sampled = sampling?.mode === 'representative-sample';
+    const sampled = state.renderOnly || sampling?.mode === 'representative-sample';
     const complete = state.discovery?.complete === true && (!sampled || /^[a-f0-9]{20}$/.test(sampling.selectionId || ''));
     const { summary: verification, business } = renderLayerSummaries(results);
     const businessPass = business.status === 'pass' && verification.business.total > 0 && verification.business.pass === verification.business.total;
@@ -320,7 +330,7 @@ if (typeof document !== 'undefined') (() => {
     const evidence = el('div');
     evidence.append(el('p', 'detail-label', '검사 근거'));
     evidence.append(el('p', 'detail-meta', `그룹: ${result.group || '기타'} · 확인: ${formatDate(result.checkedAt)} · 응답: ${result.httpStatus ?? '미확인'} · 소요: ${Number.isFinite(result.durationMs) ? (result.durationMs / 1000).toFixed(1) + '초' : '미확인'}`));
-    if (result.policy?.readOnly) evidence.append(el('p', 'detail-meta', `읽기 전용 차단 · 서비스 요청 ${Number(result.policy.blockedServiceWrites || 0) + Number(result.policy.blockedServiceSockets || 0)}건 · 외부 분석 요청 ${Number(result.policy.blockedExternalWrites || 0) + Number(result.policy.blockedExternalSockets || 0)}건 (외부 분석 차단은 화면 판정을 바꾸지 않습니다)`));
+    if (result.policy?.readOnly) evidence.append(el('p', 'detail-meta', `읽기 전용 차단 · 서비스 요청 ${Number(result.policy.blockedServiceWrites || 0) + Number(result.policy.blockedServiceSockets || 0)}건 · 외부 요청 ${Number(result.policy.blockedExternalWrites || 0) + Number(result.policy.blockedExternalSockets || 0)}건 (외부 분석 차단은 화면 판정을 바꾸지 않습니다)`));
     const groupedReadiness = result.diagnostics?.groups?.some(group => group.cause === 'readiness' || group.derivedKinds?.length);
     const issues = Array.isArray(result.issues) ? result.issues.filter(issue => !groupedReadiness || !['render-timeout', '3d-not-ready', 'loading', 'required-content'].includes(issue.kind)).map(issueMessage) : [];
     if (['pass', 'fail'].includes(result.status) && isStale(result)) issues.unshift(connected ? '이 결과는 오래되어 현재 상태를 미확인으로 표시합니다. 새 점검이 필요합니다.' : '점검 서버와 연결이 끊겨 현재 상태를 확인할 수 없습니다.');
@@ -340,6 +350,7 @@ if (typeof document !== 'undefined') (() => {
       }
       evidence.append(list);
     } else if (!issues.length) evidence.append(el('p', 'muted', '상세 검사 근거가 아직 없습니다.'));
+    if (result.renderDiagnostics) { const d = result.renderDiagnostics; evidence.append(el('p', 'detail-meta', `콘솔 오류 ${Number(d.consoleErrors || 0)}개 · 스크롤 관측 ${Number(d.lazyViewports || 0)}화면 · 이미지 대기 ${Number(d.mediaPending || 0)}개 · 가로 넘침 ${(d.horizontalOverflow || d.layout?.overflow) ? '발견' : '없음'}`)); }
     evidence.append(renderDiagnostics(result));
     if (safeLink(result.url)) evidence.append(makeLink(result.url, '실제 페이지 열기 ↗', 'detail-link'));
     else if (result.identityWithheld) evidence.append(el('p', 'muted', result.identityWithheldReason || '공개 경로 식별자는 비공개이며 검사 판정은 유지합니다.'));
@@ -364,7 +375,7 @@ if (typeof document !== 'undefined') (() => {
       heading.append(el('h4', '', LAYER_LABELS[key]), layerBadge(layer));
       section.append(heading, el('p', 'layer-card-note', layer.required ? '이 페이지의 필수 단계' : '이 페이지 적용 제외 · 별도 업무 시나리오에서 확인'));
       if (layer.reason) section.append(el('p', 'case-reason', String(layer.reason)));
-      if (layer.legacy) section.append(el('p', 'legacy-label', '기존 렌더링 전용 보고서'));
+      if (layer.legacy && !result.renderOnly) section.append(el('p', 'legacy-label', '기존 렌더링 전용 보고서'));
       if (layer.cases.length) section.append(caseList(layer.cases));
       else if (key !== 'render') section.append(el('p', 'muted', layer.required ? '등록된 시나리오가 없습니다.' : '공개 페이지에서는 이 업무를 실행하지 않습니다.'));
       layers.append(section);
@@ -442,7 +453,7 @@ if (typeof document !== 'undefined') (() => {
         const layerLine = el('span', 'page-layers');
         for (const [key, prefix] of [['render', '화면 '], ['navigation', '이동 '], ['business', '업무 ']]) layerLine.append(layerBadge(displayedLayer(result, key), prefix));
         identity.append(layerLine);
-        if (!result.layers || result.scope === 'render-only') identity.append(el('span', 'legacy-label', '기존 렌더링 전용'));
+        if (!result.renderOnly && (!result.layers || result.scope === 'render-only')) identity.append(el('span', 'legacy-label', '기존 렌더링 전용'));
         summary.append(badge, identity, el('span', 'group-text', String(result.group || '기타')), el('span', 'time-text', formatDate(result.checkedAt)), el('span', 'chevron', '›'));
         row.append(summary, rowDetail(result));
         fragment.append(row);
