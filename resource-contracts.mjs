@@ -43,6 +43,10 @@ export function resourceRole({ url, method = 'GET', resourceType, targetUrl, sta
   }
   if (!backend || !['fetch', 'xhr'].includes(resourceType)) return result();
 
+  // ExhibitionCreatorArchive.vue awaits this public route; routes/workspaces.js
+  // registers it before jwt.auth. No personal-workspace provisioning is called.
+  if (read && main && /^\/creator\/ws_[A-Za-z0-9_-]+$/.test(page) && path === `/api/workspaces${page}`) return result('essential', 'creator-public-data');
+
   // archive pages/index.vue bootstrap awaits utils/archiveApi.js
   // fetchArchiveOwnersPage (GET /api/archive/owners). A denied dependency
   // prevents both the result status and list; this role grants no permission.

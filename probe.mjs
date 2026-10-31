@@ -91,7 +91,7 @@ export async function probe(browser, target, config, screenshotDirectory) {
   const trace = createDiagnostics(target, config.diagnosticSampling);
   const networkListeners = { request: request => trace.ensure(request), response: response => trace.response(response), requestfinished: request => trace.finished(request), requestfailed: request => trace.fail(request) };
   for (const [event, listener] of Object.entries(networkListeners)) context.on(event, listener);
-  const guard = await installReadOnlyGuard(context, config.origins, trace, config.renderOnly ? { request: request => ({ allowed: renderReadAllowed(request, config.origins), effect: 'resource-read' }) } : config.publicObservationPolicy || null);
+  const guard = await installReadOnlyGuard(context, config.origins, trace, config.renderOnly ? { request: request => ({ allowed: renderReadAllowed(request, config.origins, target.url), effect: 'resource-read' }) } : config.publicObservationPolicy || null);
   const page = await context.newPage();
   let pixelsAvailable = true;
   const saveCapture = async buffer => {

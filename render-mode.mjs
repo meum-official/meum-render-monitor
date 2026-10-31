@@ -31,14 +31,40 @@ export function renderSummary(results) {
 }
 
 const publicReads = new Set(['/room/list', '/room/tags', '/boards/list/check-new', '/boards/board-list', '/boards/popup-list', '/surveys/home/active', '/faqs', '/api/billing/plan/catalog', '/api/webtoon/episodes', '/exhibitions/exhibition-list', '/api/users/simple_profile']);
-export function renderReadAllowed(request, origins) {
+// Audited SELECT/COUNT and S3 ListObjectsV2 callers; see RENDER_READ_REVIEW.md.
+// This is page-specific permission, not a wildcard for archive/workspace APIs.
+export function reviewedPublicRenderRead(request, targetUrl) {
+  let url, target;
+  try { url = new URL(request.url()); target = new URL(targetUrl); } catch { return false; }
+  if (request.method() !== 'GET' || url.origin !== 'https://backend.meum.me' || url.hash || url.username || url.password
+    || !['fetch', 'xhr'].includes(request.resourceType()) || target.username || target.password || target.hash
+    || Object.keys(request.headers()).some(name => ['authorization', 'proxy-authorization', 'cookie'].includes(name.toLowerCase()))) return false;
+  const exact = values => url.searchParams.size === Object.keys(values).length && Object.entries(values).every(([key, value]) => url.searchParams.get(key) === value);
+  if (['https://meum.me', 'https://www.meum.me'].includes(target.origin) && !target.search
+    && /^\/creator\/ws_[A-Za-z0-9_-]{1,128}$/.test(target.pathname)) {
+    return url.pathname === `/api/workspaces${target.pathname}` && !url.search;
+  }
+  if (target.origin !== 'https://archive.meum.me') return false;
+  if (['/', '/archive'].includes(target.pathname) && (target.searchParams.size === 0 || target.searchParams.size === 1 && /^[1-9]\d{0,8}$/.test(target.searchParams.get('page') || ''))) {
+    const offset = String((Number(target.searchParams.get('page') || 1) - 1) * 50);
+    return url.pathname === '/api/archive/owners' && exact({ activeOnly: '0', limit: '50', offset });
+  }
+  const owner = target.searchParams.get('i');
+  if (/^\/archive\/[^/]+$/.test(target.pathname) && target.searchParams.size === 1 && /^[1-9]\d{0,9}$/.test(owner || '')) {
+    return url.pathname === `/api/archive/owners/${owner}` && !url.search
+      || url.pathname === '/api/archive/rooms' && exact({ ownerId: owner, limit: '50', offset: '0' });
+  }
+  return false;
+}
+
+export function renderReadAllowed(request, origins, targetUrl) {
   const url = new URL(request.url());
   if (!['GET', 'HEAD'].includes(request.method()) || readPolicyDecision(url.href).blocked) return false;
   if (Object.keys(request.headers()).some(name => ['authorization', 'proxy-authorization'].includes(name.toLowerCase()))) return false;
   if (request.isNavigationRequest?.() && request.resourceType() === 'document' && !origins.includes(url.origin)) return false;
   if (url.hostname.replace(/\.$/, '') !== 'backend.meum.me') return true;
   if (url.origin !== 'https://backend.meum.me') return false;
-  return publicReads.has(url.pathname) || /^\/room\/[1-9]\d*$/.test(url.pathname)
+  return reviewedPublicRenderRead(request, targetUrl) || publicReads.has(url.pathname) || /^\/room\/[1-9]\d*$/.test(url.pathname)
     || /^\/user\/room\/detail\/?$/.test(url.pathname)
     || /^\/api\/rooms\/[1-9]\d*\/(viewer-entry|public-invitation-settings)$/.test(url.pathname)
     || /^\/exhibition\/invitation\/[A-Za-z0-9_-]+\/introduction$/.test(url.pathname)

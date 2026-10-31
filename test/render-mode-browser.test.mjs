@@ -4,6 +4,35 @@ import { createServer } from 'node:http';
 import { launchBrowser, probe } from '../probe.mjs';
 import { renderRuleFor, contractDigest } from '../render-mode.mjs';
 import { mkdtemp, rm, readFile, mkdir } from 'node:fs/promises';
+
+test('reviewed public GET reaches a synthetic transport, denied writes never do, and HTTP500 still fails', { skip: process.env.RUN_BROWSER_TESTS !== '1', timeout: 30000 }, async () => {
+  const browser = await launchBrowser();
+  try {
+    for (const [variant, expected] of [['healthy', 'pass'], ['blocked', 'unknown'], ['http500', 'fail']]) {
+      const hits = [];
+      const transport = { newContext: async options => {
+        const context = await browser.newContext(options), originalRoute = context.route.bind(context);
+        context.route = (pattern, handler) => originalRoute(pattern, route => handler({
+          request: () => route.request(), abort: (...args) => route.abort(...args),
+          // Fulfil instead of using any real production/network connection.
+          continue: async () => {
+            const request = route.request(), url = new URL(request.url());
+            if (url.origin === 'https://backend.meum.me') {
+              hits.push({ method: request.method(), path: url.pathname });
+              return route.fulfill({ status: variant === 'http500' ? 500 : 200, headers: { 'access-control-allow-origin': 'https://archive.meum.me', 'content-type': 'application/json' }, body: '{"result":[]}' });
+            }
+            return route.fulfill({ contentType: 'text/html', body: `<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{background:linear-gradient(40deg,#abc,#fed);font:20px Arial}main{padding:30px}</style><main class="archive-home"><h1>Synthetic archive home</h1><h2 id="archive-owner-list-title">Public result list</h2><div class="archive-home__toolbar"></div><p>This is a synthetic public page with visible content and no customer data.</p></main><script>fetch('https://backend.meum.me/api/archive/owners?activeOnly=0&limit=50&offset=0').then(r=>{if(!r.ok)throw Error('http');document.querySelector('.archive-home__toolbar').innerHTML='<p role="status">No entries</p>'}).catch(()=>{document.querySelector('main').insertAdjacentHTML('beforeend','<p role="alert">Read failed</p>')});${variant === 'blocked' ? "fetch('https://backend.meum.me/api/archive/owners?activeOnly=0&limit=50&offset=0',{method:'POST'}).catch(()=>{});fetch('https://backend.meum.me/api/workspaces/my').catch(()=>{})" : ''}</script>` });
+          },
+        }));
+        return context;
+      } };
+      const result = await probe(transport, { id: 'f'.repeat(20), url: 'https://archive.meum.me/', viewport: { name: 'desktop', width: 900, height: 600 } }, { renderOnly: true, origins: ['https://archive.meum.me'], navigationTimeoutMs: 3000, renderTimeoutMs: 1200, settleMs: 100, captureScreenshots: false }, 'unused');
+      assert.equal(result.status, expected, variant);
+      assert.deepEqual(hits, [{ method: 'GET', path: '/api/archive/owners' }]);
+      if (variant === 'http500') assert.ok(result.diagnostics.groups.some(group => group.cause === 'http-resource' && group.severity === 'failure'));
+    }
+  } finally { await browser.close(); }
+});
 import path from 'node:path';
 import { tmpdir } from 'node:os';
 import { publicSummary } from '../export-report.mjs';
