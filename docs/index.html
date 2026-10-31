@@ -17,7 +17,7 @@
     </header>
     <main>
       <section class="heading">
-        <div><p class="eyebrow">SERVICE OBSERVABILITY</p><h1>서비스 검증 현황</h1><p class="subtitle">화면 렌더링 · 화면 이동 · 인증된 업무를 구분해 확인합니다</p></div>
+        <div><p class="eyebrow">SERVICE OBSERVABILITY</p><h1>서비스 검증 현황</h1><p class="subtitle">운영 공개 화면의 필수 요소와 렌더링 오류를 확인합니다</p></div>
         <button id="run-button" class="primary-button" type="button"><span aria-hidden="true">↻</span> 지금 전체 점검</button>
       </section>
 
@@ -26,7 +26,8 @@
 
       <section class="sample-scope panel" aria-label="대표 표본 점검 범위"><strong>공개 대표 표본만 점검 · 전체 서비스 검증 아님</strong><p>비인증 공개 경로의 화면·실행 오류를 확인합니다. 로그인·권한·저장·결제 업무는 미검증입니다.</p><p id="sampling-pool">후보 목록의 수집 범위를 확인하고 있습니다.</p><details id="sampling-details"><summary>선택 ID·공개 해시·선정 사유</summary><p id="sampling-meta">대표 표본 선택 메타를 기다리고 있습니다.</p><ul id="sampling-list"></ul></details></section>
 
-      <section class="business-scope panel" aria-label="실제 앱 업무 점검 상태"><span class="dot dot-gray"></span><div><strong>실제 앱 업무 11개 · 모두 차단 / 미실행</strong><p>승인된 실제 앱 인증 adapter가 없어 권한·저장·설문·결제 업무를 실행하지 않았습니다. 아래 초록색은 공개 표본의 렌더링 검사만 뜻합니다.</p></div></section>
+      <p id="version-meta" class="muted">버전 증거를 기다리고 있습니다.</p>
+      <section class="business-scope panel" aria-label="실제 앱 업무 점검 상태"><span class="dot dot-gray"></span><div><strong id="business-scope-title">검사 범위를 확인하고 있습니다</strong><p id="business-scope-note">보고서의 범위와 제외 항목을 확인합니다.</p></div></section>
 
       <section class="overview panel" aria-labelledby="overview-title">
         <div class="overview-main"><span id="overview-beacon" class="beacon unknown" aria-hidden="true"><span></span></span><div><p class="eyebrow">CURRENT STATUS</p><h2 id="overview-title">첫 점검을 기다리고 있습니다</h2><p id="overview-description">실제 검사 결과가 들어오면 페이지별 상태를 표시합니다.</p></div></div>
@@ -51,7 +52,7 @@
       </section>
 
       <section class="history-section panel" aria-labelledby="history-title"><div class="section-heading"><div><p class="eyebrow">RECENT RUNS</p><h2 id="history-title">최근 점검 이력</h2></div><span class="muted">각 점검의 완료 결과</span></div><div id="history"><p class="muted">완료된 점검 이력이 아직 없습니다.</p></div></section>
-      <footer><p><strong>자동 점검의 범위</strong> 등록된 화면·이동·업무 시나리오만 확인합니다. 화면 렌더링 통과는 이동이나 저장·권한·결제 검증을 대신하지 않습니다. 시나리오가 없거나 실행되지 않은 단계는 미확인입니다.</p><p>공개 요약에는 고객 화면 캡처와 인증 정보·요청값·관측 원문을 포함하지 않습니다. 상세 근거는 비공개 로컬 기록에서 확인합니다.</p></footer>
+      <footer><p><strong>자동 점검의 범위</strong> 등록된 공개 화면의 렌더링만 확인합니다. 이동·로그인·생성·저장·권한·결제는 대상이 아니며 통과로 집계하지 않습니다. 미등록 화면·정책 차단·관측 미완료는 미확인입니다.</p><p>공개 요약에는 고객 화면 캡처와 인증 정보·요청값·관측 원문을 포함하지 않습니다. 상세 근거는 비공개 로컬 기록에서 확인합니다.</p></footer>
     </main>
     <noscript><div class="alert">이 대시보드는 자바스크립트가 필요합니다. 브라우저에서 자바스크립트를 허용해 주세요.</div></noscript>
   </body>

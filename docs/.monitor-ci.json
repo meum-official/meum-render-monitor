@@ -2,13 +2,13 @@
   "schemaVersion": 1,
   "mode": "after-deploy",
   "fingerprints": {
-    "https://meum.me/home": "40f4d9358d17d9386b6d112021d0341753cc5ff327bf21028224aa1a1f1ffe2e",
+    "https://meum.me/home": "583df6760bd20138ae96e0c751ee3f97d6c31b9338bbdf96a63551a5fdefa0fc",
     "https://archive.meum.me/": "b8fede61ff0075cd6c1dbd9bb7218b95527b898f7a53f77a668e8b07595ac0bb"
   },
-  "watchUntil": "2026-10-30T08:49:35.496Z",
-  "lastGateAt": "2026-10-30T04:28:41.951Z",
-  "reason": "manual-once",
+  "watchUntil": "2026-10-31T21:39:48.988Z",
+  "lastGateAt": "2026-10-31T15:39:48.988Z",
+  "reason": "deployment-changed",
   "shouldRun": true,
-  "resetCycle": false,
+  "resetCycle": true,
   "errorFingerprint": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
 }
