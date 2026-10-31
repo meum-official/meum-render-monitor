@@ -105,3 +105,10 @@ test('untrusted origin/method/resource types and malformed locations cannot inhe
   expect(resourceRole({ url: 'http://127.0.0.1:9123/api/rooms/getDataJson', targetUrl: 'http://127.0.0.1:9123/meum-lite-viewer', resourceType: 'fetch' }), 'essential', 'viewer-scene-data');
   expect(resourceRole({ url: 'http://127.0.0.1:9999/api/rooms/getDataJson', targetUrl: 'http://127.0.0.1:9123/meum-lite-viewer', resourceType: 'fetch' }), 'unknown', 'unclassified');
 });
+
+test('archive owners is required only on archive home, and classification never permits its request', async () => {
+  const { renderReadAllowed } = await import('../render-mode.mjs');
+  for (const pathname of ['/', '/archive']) expect(classify('/api/archive/owners?limit=50', { targetUrl: 'https://archive.meum.me' + pathname }), 'essential', 'archive-owners');
+  for (const patch of [{ targetUrl: main + '/home' }, { targetUrl: 'https://archive.meum.me/archive/viewer/1' }, { targetUrl: 'https://archive.meum.me.evil.invalid/' }, { method: 'POST' }, { resourceType: 'image' }, { url: api + '/api/archive/owners-extra' }]) expect(classify('/api/archive/owners', { targetUrl: 'https://archive.meum.me/', ...patch }), 'unknown', 'unclassified');
+  assert.equal(renderReadAllowed({ url: () => api + '/api/archive/owners', method: () => 'GET', headers: () => ({}), isNavigationRequest: () => false }, []), false);
+});

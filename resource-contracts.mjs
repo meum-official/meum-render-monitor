@@ -43,6 +43,11 @@ export function resourceRole({ url, method = 'GET', resourceType, targetUrl, sta
   }
   if (!backend || !['fetch', 'xhr'].includes(resourceType)) return result();
 
+  // archive pages/index.vue bootstrap awaits utils/archiveApi.js
+  // fetchArchiveOwnersPage (GET /api/archive/owners). A denied dependency
+  // prevents both the result status and list; this role grants no permission.
+  if (read && path === '/api/archive/owners' && target.hostname === 'archive.meum.me' && ['/', '/archive'].includes(page)) return result('essential', 'archive-owners');
+
   // MeumLiteViewerEntry.vue419-447: exact-ID lifecycle preflight enables Unity.
   if (read && /^\/api\/rooms\/[1-9]\d*\/viewer-entry$/.test(path) && normalViewer) return result('essential', 'viewer-entry-preflight');
   // useExhibitionPassword.js16-42; MeumLiteViewer.vue6011; Entry.vue419-437.

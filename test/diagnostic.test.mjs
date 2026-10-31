@@ -194,3 +194,22 @@ test('browser counterexamples distinguish optional warnings, unknown errors, cor
     assert.equal(blocked.diagnostics.readiness.state, 'blocked');
   } finally { await browser?.close(); server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); }
 });
+
+test('archive home owners dependency stays blocked without becoming a false service failure', () => {
+  const archive = { id, url: 'https://archive.meum.me/' };
+  const req = request('https://backend.meum.me/api/archive/owners?activeOnly=0&limit=50');
+  const symptoms = [{ kind: 'required-content' }, { kind: 'error-screen' }];
+  const blocked = createDiagnostics(archive);
+  blocked.block(req, 'unreviewed-request');
+  const diagnostic = blocked.finish(symptoms, ready(), limits);
+  assert.equal(diagnostic.readiness.state, 'blocked');
+  assert.equal(diagnostic.requests[0].contract, 'archive-owners');
+  assert.equal(diagnostic.groups.some(group => group.severity === 'failure'), false);
+  const publicValue = validateDiagnostics(diagnostic, { rowId: id, targetUrl: archive.url });
+  assert.equal(publicValue.requests[0].role, 'essential');
+  assert.equal(publicValue.requests[0].contract, 'archive-owners');
+  const actualFailure = createDiagnostics(archive);
+  finishRequest(actualFailure, req, 500);
+  assert.ok(actualFailure.finish(symptoms, ready(), limits).groups.some(group => group.cause === 'http-resource' && group.severity === 'failure'));
+  assert.ok(blocked.finish([...symptoms, { kind: 'javascript', message: 'independent defect' }], ready(), limits).groups.some(group => group.cause === 'javascript' && group.severity === 'failure'));
+});
