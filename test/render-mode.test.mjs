@@ -90,3 +90,16 @@ test('archive owner query links retain anonymous results without publishing iden
     assert.equal(publicSummary({ results: [{ ...row, url: 'https://archive.meum.me/archive/private-nickname' + query }], discovery: {} }).results.length, 0);
   }
 });
+
+test('public archive pagination keeps its result and diagnostics without admitting private query parameters', () => {
+  const row = { id: '1'.repeat(20), url: 'https://archive.meum.me/?page=2', status: 'unknown', checkedAt: new Date().toISOString(), checks: [], issues: [{ kind: 'read-only-block' }] };
+  const report = publicSummary({ renderOnly: true, results: [row], discovery: {} });
+  assert.equal(report.results.length, 1);
+  assert.equal(report.results[0].url, row.url);
+  assert.equal(report.results[0].status, 'unknown');
+  assert.equal(report.withheldResults, 0);
+  assert.equal(report.results[0].issues[0].kind, 'read-only-block');
+  for (const query of ['?page=2&token=private', '?page=2&page=3', '?page=private', '?page=0', '?page=-1', '?page=2#private']) assert.equal(publicSummary({ results: [{ ...row, url: 'https://archive.meum.me/' + query }], discovery: {} }).results.length, 0);
+  const fail = publicSummary({ results: [{ ...row, status: 'fail' }], discovery: {} });
+  assert.equal(fail.results[0].status, 'fail');
+});

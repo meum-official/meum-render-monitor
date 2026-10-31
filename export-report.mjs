@@ -53,6 +53,9 @@ function publicUrl(raw, selected) {
     const url = new URL(raw);
     if (url.username || url.password || url.hash) return null;
     if (selected.has(url.href)) return url.href;
+    // Archive sitemap pagination contains no customer identity. Preserve this
+    // exact public page parameter while rejecting all other query strings.
+    if (url.origin === 'https://archive.meum.me' && ['/', '/archive'].includes(url.pathname) && url.searchParams.size === 1 && /^[1-9]\d{0,8}$/.test(url.searchParams.get('page') || '')) return url.href;
     if (!url.search && (url.origin === 'https://meum.me' && staticPaths.has(url.pathname) || url.origin === 'https://archive.meum.me' && ['/', '/archive'].includes(url.pathname))) return url.href;
   } catch { /* Omit arbitrary URLs rather than stripping credentials into a different target. */ }
   return null;
